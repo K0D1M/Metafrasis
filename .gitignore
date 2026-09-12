@@ -1,0 +1,22 @@
+node_modules/
+dist/
+build/
+*.local
+
+# Prisma / SQLite
+server/prisma/*.db
+server/prisma/*.db-journal
+
+# Uploaded source files and screenshots
+server/uploads/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,229 @@
+import { Router } from 'express';
+import {
+  ActivityAction,
+  saveTranslationSchema,
+  createCommentSchema,
+  type SourceStringView,
+  type CommentView,
+} from '@metafrasis/shared';
+import { prisma } from '../db.js';
+import { requireProjectRole } from '../auth.js';
+import { logActivity } from '../services/activity.js';
+
+export const stringsRouter: Router = Router({ mergeParams: true });
+
+function primaryTarget(targetLanguages: string): string {
+  return (JSON.parse(targetLanguages) as string[])[0] ?? 'el';
+}
+
+/** Επιβεβαιώνει ότι το κείμενο ανήκει όντως στο project της διαδρομής. */
+async function stringInProject(stringId: string, projectId: string) {
+  return prisma.sourceString.findFirst({
+    where: { id: stringId, file: { projectId } },
+  });
+}
+
+/* ── Κείμενα ενός αρχείου ──────────────────────────────────────────────────── */
+
+stringsRouter.get('/files/:fileId/strings', requireProjectRole(), async (req, res) => {
+  const projectId = req.params.projectId!;
+  const project = await prisma.project.findUnique({ where: { id: projectId } });
+  if (!project) {
+    res.status(404).json({ error: 'Το project δεν βρέθηκε' });
+    return;
+  }
+
+  const file = await prisma.sourceFile.findFirst({
+    where: { id: req.params.fileId, projectId },
+  });
+  if (!file) {
+    res.status(404).json({ error: 'Το αρχείο δεν βρέθηκε' });
+    return;
+  }
+
+  const language = (req.query.language as string) || primaryTarget(project.targetLanguages);
+
+  const strings = await prisma.sourceString.findMany({
+    where: { fileId: file.id, removed: false },
+    orderBy: { order: 'asc' },
+    include: {
+      translations: { where: { language } },
+      _count: { select: { comments: true } },
+    },
+  });
+
+  res.json({
+    fileName: file.name,
+    language,
+    strings: strings.map(
+      (s): SourceStringView => ({
+        id: s.id,
+        key: s.key,
+        sourceText: s.sourceText,
+        order: s.order,
+        needsReview: s.needsReview,
+        removed: s.removed,
+        translation: s.translations[0]?.text ?? null,
+        commentCount: s._count.comments,
+      }),
+    ),
+  });
+});
+
+/* ── Αποθήκευση μετάφρασης ─────────────────────────────────────────────────── */
+
+stringsRouter.put('/strings/:stringId/translation', requireProjectRole(), async (req, res) => {
+  const parsed = saveTranslationSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Μη έγκυρη μετάφραση' });
+    return;
+  }
+
+  const target = await stringInProject(req.params.stringId!, req.params.projectId!);
+  if (!target) {
+    res.status(404).json({ error: 'Το κείμενο δεν βρέθηκε' });
+    return;
+  }
+
+  const { text, language } = parsed.data;
+
+  await prisma.$transaction([
+    prisma.translation.upsert({
+      where: { stringId_language: { stringId: target.id, language } },
+      create: { stringId: target.id, language, text, authorId: req.userId! },
+      update: { text, authorId: req.userId! },
+    }),
+    // Η αποθήκευση σημαίνει ότι ο μεταφραστής είδε το νέο πρωτότυπο.
+    prisma.sourceString.update({
+      where: { id: target.id },
+      data: { needsReview: false },
+    }),
+  ]);
+
+  await logActivity({
+    projectId: req.params.projectId!,
+    userId: req.userId!,
+    action: ActivityAction.TRANSLATION_SAVE,
+    target: target.key,
+  });
+
+  res.status(204).end();
+});
+
+/* ── Σχόλια και απαντήσεις ─────────────────────────────────────────────────── */
+
+/** Χτίζει το δέντρο συζήτησης από μια επίπεδη λίστα, με μία διαδρομή. */
+function buildThreads(
+  rows: Array<{
+    id: string;
+    body: string;
+    createdAt: Date;
+    parentId: string | null;
+    author: { id: string; username: string; avatarUrl: string | null };
+  }>,
+): CommentView[] {
+  const views = new Map<string, CommentView>(
+    rows.map((r) => [
+      r.id,
+      {
+        id: r.id,
+        body: r.body,
+        createdAt: r.createdAt.toISOString(),
+        author: r.author,
+        replies: [],
+      },
+    ]),
+  );
+
+  const roots: CommentView[] = [];
+  for (const row of rows) {
+    const view = views.get(row.id)!;
+    const parent = row.parentId ? views.get(row.parentId) : undefined;
+    // Απάντηση σε σχόλιο που δεν βρέθηκε εμφανίζεται ως ρίζα, αντί να εξαφανιστεί.
+    if (parent) parent.replies.push(view);
+    else roots.push(view);
+  }
+  return roots;
+}
+
+stringsRouter.get('/strings/:stringId/comments', requireProjectRole(), async (req, res) => {
+  const target = await stringInProject(req.params.stringId!, req.params.projectId!);
+  if (!target) {
+    res.status(404).json({ error: 'Το κείμενο δεν βρέθηκε' });
+    return;
+  }
+
+  const rows = await prisma.comment.findMany({
+    where: { stringId: target.id },
+    orderBy: { createdAt: 'asc' },
+    include: { author: { select: { id: true, username: true, avatarUrl: true } } },
+  });
+
+  res.json(buildThreads(rows));
+});
+
+stringsRouter.post('/strings/:stringId/comments', requireProjectRole(), async (req, res) => {
+  const parsed = createCommentSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Μη έγκυρο σχόλιο' });
+    return;
+  }
+
+  const target = await stringInProject(req.params.stringId!, req.params.projectId!);
+  if (!target) {
+    res.status(404).json({ error: 'Το κείμενο δεν βρέθηκε' });
+    return;
+  }
+
+  const { body, parentId } = parsed.data;
+
+  // Η απάντηση πρέπει να ανήκει στο ίδιο κείμενο, αλλιώς μπερδεύονται οι συζητήσεις.
+  if (parentId) {
+    const parent = await prisma.comment.findFirst({
+      where: { id: parentId, stringId: target.id },
+    });
+    if (!parent) {
+      res.status(400).json({ error: 'Το σχόλιο στο οποίο απαντάς δεν βρέθηκε' });
+      return;
+    }
+  }
+
+  const comment = await prisma.comment.create({
+    data: { stringId: target.id, authorId: req.userId!, body, parentId: parentId ?? null },
+    include: { author: { select: { id: true, username: true, avatarUrl: true } } },
+  });
+
+  await logActivity({
+    projectId: req.params.projectId!,
+    userId: req.userId!,
+    action: ActivityAction.COMMENT_ADD,
+    target: target.key,
+  });
+
+  res.status(201).json({
+    id: comment.id,
+    body: comment.body,
+    createdAt: comment.createdAt.toISOString(),
+    author: comment.author,
+    replies: [],
+  } satisfies CommentView);
+});
+
+stringsRouter.delete('/comments/:commentId', requireProjectRole(), async (req, res) => {
+  const comment = await prisma.comment.findFirst({
+    where: { id: req.params.commentId, string: { file: { projectId: req.params.projectId } } },
+  });
+  if (!comment) {
+    res.status(404).json({ error: 'Το σχόλιο δεν βρέθηκε' });
+    return;
+  }
+
+  // Ο καθένας σβήνει τα δικά του· ο διαχειριστής οποιοδήποτε.
+  if (comment.authorId !== req.userId && req.projectRole !== 'MANAGER') {
+    res.status(403).json({ error: 'Μπορείς να διαγράψεις μόνο τα δικά σου σχόλια' });
+    return;
+  }
+
+  await prisma.comment.delete({ where: { id: comment.id } });
+  res.status(204).end();
+});

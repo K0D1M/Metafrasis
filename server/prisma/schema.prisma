@@ -1,0 +1,325 @@
+// Μετάφρασις — σχήμα βάσης δεδομένων
+// SQLite για μηδενική εγκατάσταση· η διαδρομή προς Postgres μένει ανοιχτή μέσω Prisma.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// Ρόλος μέλους μέσα σε ένα project.
+/// Το SQLite δεν έχει enum· κρατάμε string με τιμές "MANAGER" | "TRANSLATOR".
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  /// Μοναδικό: επιτρέπει σύνδεση είτε με email είτε με όνομα χρήστη.
+  username     String   @unique
+  /// Αλλάζει μόνο από Διαχειριστή (απαίτηση προδιαγραφής).
+  passwordHash String
+  /// Διαδρομή ή data URI του στρογγυλού avatar.
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+
+  memberships    ProjectMember[]
+  translations   Translation[]
+  comments       Comment[]
+  uploads        FileVersion[]
+  invitesSent    Invite[]        @relation("InviteCreator")
+  screenshots    Screenshot[]
+  tasksAssigned  Task[]          @relation("TaskAssignee")
+  tasksCreated   Task[]          @relation("TaskCreator")
+  taskComments   TaskComment[]
+  qaReports      QaReport[]      @relation("QaAuthor")
+  qaResolved     QaReport[]      @relation("QaResolver")
+  activities     Activity[]
+  passwordResets PasswordReset[]
+
+  @@index([email])
+}
+
+model Project {
+  id             String   @id @default(cuid())
+  name           String
+  /// Κωδικοί γλωσσών, π.χ. "en".
+  sourceLanguage String
+  /// JSON πίνακας κωδικών γλωσσών-στόχων, π.χ. ["el"].
+  targetLanguages String
+  /// Ορατότητα της καρτέλας Δραστηριότητα στους μη-διαχειριστές.
+  activityVisibleToAll Boolean @default(false)
+  createdAt      DateTime @default(now())
+
+  members     ProjectMember[]
+  folders     Folder[]
+  files       SourceFile[]
+  invites     Invite[]
+  screenshots Screenshot[]
+  tasks       Task[]
+  qaReports   QaReport[]
+  activities  Activity[]
+}
+
+model ProjectMember {
+  id        String   @id @default(cuid())
+  projectId String
+  userId    String
+  /// "MANAGER" (Διαχειριστής) | "TRANSLATOR" (Μεταφραστής)
+  role      String
+  joinedAt  DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+}
+
+/// Δέντρο φακέλων μέσα στο project (Νέος Φάκελος).
+model Folder {
+  id        String   @id @default(cuid())
+  projectId String
+  parentId  String?
+  name      String
+  createdAt DateTime @default(now())
+
+  project  Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent   Folder?      @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children Folder[]     @relation("FolderTree")
+  files    SourceFile[]
+
+  @@index([projectId, parentId])
+}
+
+/// Ένα αρχείο JSON του παιχνιδιού. Το περιεχόμενο ζει στα FileVersion.
+model SourceFile {
+  id        String   @id @default(cuid())
+  projectId String
+  folderId  String?
+  name      String
+  createdAt DateTime @default(now())
+
+  project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  folder    Folder?        @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  versions  FileVersion[]
+  strings   SourceString[]
+  taskFiles TaskFile[]
+
+  @@index([projectId, folderId])
+}
+
+/// Κάθε ανέβασμα ή Ενημέρωση δημιουργεί νέα αναθεώρηση.
+model FileVersion {
+  id         String   @id @default(cuid())
+  fileId     String
+  /// Ξεκινά από 1 και αυξάνεται με κάθε Ενημέρωση — η στήλη "Revision".
+  revision   Int
+  uploadedBy String
+  uploadedAt DateTime @default(now())
+  /// Το ακατέργαστο JSON, για ακριβή εξαγωγή.
+  rawJson    String
+
+  file     SourceFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  uploader User       @relation(fields: [uploadedBy], references: [id])
+
+  @@unique([fileId, revision])
+}
+
+/// Ένα μεταφράσιμο κείμενο, σταθερό ανά διαδρομή κλειδιού μέσα στο αρχείο.
+model SourceString {
+  id         String  @id @default(cuid())
+  fileId     String
+  /// Διαδρομή κλειδιού, π.χ. "chapter1.intro.line1".
+  key        String
+  sourceText String
+  /// Σειρά εμφάνισης στο αρχείο.
+  order      Int
+  /// Το πρωτότυπο άλλαξε σε νεότερη αναθεώρηση — χρειάζεται έλεγχος.
+  needsReview Boolean @default(false)
+  /// Το κλειδί έλειπε από νεότερη αναθεώρηση. Δεν διαγράφουμε ποτέ — μπορεί να επανέλθει.
+  removed    Boolean @default(false)
+
+  file         SourceFile    @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  translations Translation[]
+  comments     Comment[]
+  qaReports    QaReport[]
+
+  @@unique([fileId, key])
+  @@index([fileId, order])
+}
+
+model Translation {
+  id         String   @id @default(cuid())
+  stringId   String
+  language   String
+  text       String
+  authorId   String
+  updatedAt  DateTime @updatedAt
+
+  string SourceString @relation(fields: [stringId], references: [id], onDelete: Cascade)
+  author User         @relation(fields: [authorId], references: [id])
+
+  @@unique([stringId, language])
+  @@index([stringId])
+}
+
+/// Σχόλιο σε κείμενο· οι απαντήσεις δείχνουν στο γονικό σχόλιο.
+model Comment {
+  id        String   @id @default(cuid())
+  stringId  String
+  authorId  String
+  parentId  String?
+  body      String
+  createdAt DateTime @default(now())
+
+  string  SourceString @relation(fields: [stringId], references: [id], onDelete: Cascade)
+  author  User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent  Comment?     @relation("CommentThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies Comment[]    @relation("CommentThread")
+
+  @@index([stringId, createdAt])
+}
+
+/// Στιγμιότυπο οθόνης. Το αρχείο ζει στο server/uploads· εδώ μόνο η διαδρομή του.
+model Screenshot {
+  id         String   @id @default(cuid())
+  projectId  String
+  /// Όνομα αρχείου στον δίσκο — τυχαίο, ώστε να μην συγκρούονται ανεβάσματα.
+  storedName String
+  /// Το αρχικό όνομα, όπως το είδε ο χρήστης.
+  originalName String
+  mimeType   String
+  sizeBytes  Int
+  uploadedBy String
+  uploadedAt DateTime @default(now())
+
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploader User    @relation(fields: [uploadedBy], references: [id])
+
+  @@index([projectId, uploadedAt])
+}
+
+/// Εργασία ανατεθειμένη σε μέλος (καρτέλα Εργασίες).
+model Task {
+  id          String    @id @default(cuid())
+  projectId   String
+  title       String
+  description String?
+  assigneeId  String
+  createdById String
+  /// "OPEN" | "DONE"
+  status      String    @default("OPEN")
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  project   Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee  User          @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: Cascade)
+  createdBy User          @relation("TaskCreator", fields: [createdById], references: [id])
+  files     TaskFile[]
+  comments  TaskComment[]
+
+  @@index([projectId, assigneeId])
+}
+
+/// Τα αρχεία του project που αφορά μια εργασία.
+model TaskFile {
+  taskId String
+  fileId String
+
+  task Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  file SourceFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, fileId])
+}
+
+/// Σχόλιο στην κύρια καρτέλα Εργασίες.
+model TaskComment {
+  id        String   @id @default(cuid())
+  taskId    String
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt])
+}
+
+/// Αναφορά ποιότητας από μέλος (καρτέλα Αναφορές QA).
+model QaReport {
+  id          String    @id @default(cuid())
+  projectId   String
+  /// Προαιρετική σύνδεση με συγκεκριμένο κείμενο.
+  stringId    String?
+  title       String
+  description String
+  /// "LOW" | "MEDIUM" | "HIGH"
+  severity    String    @default("MEDIUM")
+  /// "OPEN" | "RESOLVED"
+  status      String    @default("OPEN")
+  authorId    String
+  resolvedById String?
+  createdAt   DateTime  @default(now())
+  resolvedAt  DateTime?
+
+  project    Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  string     SourceString? @relation(fields: [stringId], references: [id], onDelete: SetNull)
+  author     User          @relation("QaAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  resolvedBy User?         @relation("QaResolver", fields: [resolvedById], references: [id])
+
+  @@index([projectId, status])
+}
+
+/// Καταγραφή ενεργειών (καρτέλα Δραστηριότητα).
+model Activity {
+  id        String   @id @default(cuid())
+  projectId String
+  userId    String
+  /// Σταθερό αναγνωριστικό τύπου, π.χ. "file.upload" — το UI το μεταφράζει.
+  action    String
+  /// Περιγραφικό αντικείμενο, π.χ. όνομα αρχείου.
+  target    String?
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+}
+
+/// Αίτημα επαναφοράς κωδικού. Παράλληλο μοντέλο με το Invite: token, λήξη, χρήση μία φορά.
+/// Λήξη 1 ώρας — πιο σύντομη από την πρόσκληση, γιατί αφορά ευαίσθητο διαπιστευτήριο.
+model PasswordReset {
+  id        String    @id @default(cuid())
+  userId    String
+  token     String    @unique
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// Πρόσκληση μέλους (Προσθήκη μέλους → Δημιουργία Συνδέσμου).
+model Invite {
+  id         String    @id @default(cuid())
+  projectId  String
+  email      String
+  role       String
+  message    String?
+  token      String    @unique
+  createdBy  String
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  acceptedAt DateTime?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creator User    @relation("InviteCreator", fields: [createdBy], references: [id])
+
+  @@index([projectId])
+}
