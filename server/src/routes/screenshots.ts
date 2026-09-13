@@ -1,8 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { randomBytes } from 'node:crypto';
-import { mkdir, unlink, writeFile } from 'node:fs/promises';
-import { extname, join, resolve } from 'node:path';
+import { extname } from 'node:path';
 import {
   ActivityAction,
   ALLOWED_IMAGE_TYPES,
@@ -13,11 +12,9 @@ import {
 import { prisma } from '../db.js';
 import { requireProjectRole } from '../auth.js';
 import { logActivity } from '../services/activity.js';
+import { uploadScreenshot, deleteScreenshot, getScreenshotUrl } from '../storage.js';
 
 export const screenshotsRouter: Router = Router({ mergeParams: true });
-
-/** Τα αρχεία ζουν εκτός βάσης· η SQLite μένει μικρή και γρήγορη. */
-export const UPLOAD_DIR = resolve(process.cwd(), 'uploads', 'screenshots');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -31,17 +28,18 @@ const upload = multer({
   },
 });
 
-function toView(row: {
+async function toView(row: {
   id: string;
   storedName: string;
   originalName: string;
   sizeBytes: number;
   uploadedAt: Date;
   uploader: { id: string; username: string; avatarUrl: string | null };
-}): ScreenshotView {
+}): Promise<ScreenshotView> {
   return {
     id: row.id,
-    url: `/api/screenshots/${row.storedName}`,
+    // Υπογεγραμμένος σύνδεσμος: το bucket είναι ιδιωτικό, ισχύει προσωρινά.
+    url: await getScreenshotUrl(row.storedName),
     originalName: row.originalName,
     sizeBytes: row.sizeBytes,
     uploadedAt: row.uploadedAt.toISOString(),
@@ -55,7 +53,7 @@ screenshotsRouter.get('/', requireProjectRole(), async (req, res) => {
     orderBy: { uploadedAt: 'desc' },
     include: { uploader: { select: { id: true, username: true, avatarUrl: true } } },
   });
-  res.json(rows.map(toView));
+  res.json(await Promise.all(rows.map(toView)));
 });
 
 screenshotsRouter.post('/', requireProjectRole(), upload.single('file'), async (req, res) => {
@@ -64,15 +62,22 @@ screenshotsRouter.post('/', requireProjectRole(), upload.single('file'), async (
     return;
   }
 
-  // Τυχαίο όνομα στον δίσκο: δύο μέλη μπορούν να ανεβάσουν "bug.png" την ίδια στιγμή.
-  const storedName = `${randomBytes(16).toString('hex')}${extname(req.file.originalname) || '.png'}`;
+  const projectId = req.params.projectId!;
+  // Τυχαίο όνομα, με το project ως φάκελο μέσα στο bucket — τακτοποιεί τα αρχεία
+  // και δύο μέλη μπορούν να ανεβάσουν "bug.png" την ίδια στιγμή χωρίς σύγκρουση.
+  const storedName = `${projectId}/${randomBytes(16).toString('hex')}${extname(req.file.originalname) || '.png'}`;
 
-  await mkdir(UPLOAD_DIR, { recursive: true });
-  await writeFile(join(UPLOAD_DIR, storedName), req.file.buffer);
+  try {
+    await uploadScreenshot(storedName, req.file.buffer, req.file.mimetype);
+  } catch (error) {
+    console.error('[metafrasis] αποτυχία ανεβάσματος στο Storage:', error);
+    res.status(502).json({ error: 'Αποτυχία αποθήκευσης της εικόνας' });
+    return;
+  }
 
   const row = await prisma.screenshot.create({
     data: {
-      projectId: req.params.projectId!,
+      projectId,
       storedName,
       originalName: req.file.originalname,
       mimeType: req.file.mimetype,
@@ -83,13 +88,13 @@ screenshotsRouter.post('/', requireProjectRole(), upload.single('file'), async (
   });
 
   await logActivity({
-    projectId: req.params.projectId!,
+    projectId,
     userId: req.userId!,
     action: ActivityAction.SCREENSHOT_UPLOAD,
     target: req.file.originalname,
   });
 
-  res.status(201).json(toView(row));
+  res.status(201).json(await toView(row));
 });
 
 screenshotsRouter.delete('/:screenshotId', requireProjectRole(), async (req, res) => {
@@ -108,8 +113,7 @@ screenshotsRouter.delete('/:screenshotId', requireProjectRole(), async (req, res
   }
 
   await prisma.screenshot.delete({ where: { id: row.id } });
-  // Το αρχείο μπορεί να λείπει ήδη· η εγγραφή έφυγε, που είναι το ουσιώδες.
-  await unlink(join(UPLOAD_DIR, row.storedName)).catch(() => {});
+  await deleteScreenshot(row.storedName);
 
   await logActivity({
     projectId: req.params.projectId!,

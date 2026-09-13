@@ -8,6 +8,7 @@ import {
 import { prisma } from '../db.js';
 import { requireProjectRole } from '../auth.js';
 import { logActivity } from '../services/activity.js';
+import { deleteScreenshots } from '../storage.js';
 
 export const activityRouter: Router = Router({ mergeParams: true });
 
@@ -83,8 +84,22 @@ activityRouter.patch(
   },
 );
 
-/** Διαγραφή project — μη αναστρέψιμη, γι' αυτό μόνο από διαχειριστή. */
+/**
+ * Διαγραφή project — μη αναστρέψιμη, γι' αυτό μόνο από διαχειριστή.
+ *
+ * Το Prisma cascade καθαρίζει τις εγγραφές Screenshot στη βάση, αλλά όχι τα ίδια τα
+ * αρχεία στο Supabase Storage — γι' αυτό τα διαγράφουμε ρητά ΠΡΙΝ το cascade delete,
+ * όσο ξέρουμε ακόμα ποια είναι.
+ */
 activityRouter.delete('/', requireProjectRole({ managerOnly: true }), async (req, res) => {
+  const screenshots = await prisma.screenshot.findMany({
+    where: { projectId: req.params.projectId },
+    select: { storedName: true },
+  });
+
   await prisma.project.delete({ where: { id: req.params.projectId } });
+
+  await deleteScreenshots(screenshots.map((s) => s.storedName));
+
   res.status(204).end();
 });
