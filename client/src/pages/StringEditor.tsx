@@ -140,6 +140,7 @@ function StringRow({
 }) {
   const [text, setText] = useState(item.translation ?? '');
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [copied, setCopied] = useState(false);
 
   // Το πεδίο ακολουθεί την εξωτερική τιμή όταν αλλάζει από αλλού (π.χ. επαναφόρτωση).
   useEffect(() => setText(item.translation ?? ''), [item.translation]);
@@ -154,6 +155,16 @@ function StringRow({
       setTimeout(() => setStatus('idle'), 1500);
     } catch {
       setStatus('idle');
+    }
+  }
+
+  async function copySource() {
+    try {
+      await navigator.clipboard.writeText(item.sourceText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Χωρίς άδεια clipboard, το κείμενο είναι ήδη ορατό για χειροκίνητη αντιγραφή.
     }
   }
 
@@ -187,10 +198,19 @@ function StringRow({
         <div>
           <label>{el.editor.source}</label>
           <div
-            className="card"
+            className="card reveal-on-hover"
             style={{ background: 'var(--surface-2)', minHeight: 44, whiteSpace: 'pre-wrap' }}
           >
             {item.sourceText}
+            <button
+              type="button"
+              className="ghost hover-action"
+              onClick={() => void copySource()}
+              title={el.editor.copySource}
+              aria-label={el.editor.copySource}
+            >
+              {copied ? '✓' : '⧉'}
+            </button>
           </div>
         </div>
         <div>

@@ -129,8 +129,9 @@ export const el = {
     reply: 'Απάντηση',
     send: 'Αποστολή',
     noComments: 'Κανένα σχόλιο ακόμα',
-    untranslated: 'Αμετάφραστα',
+    untranslated: 'Μη Μεταφρασμένα',
     all: 'Όλα',
+    copySource: 'Αντιγραφή πρωτότυπου',
   },
 
   members: {

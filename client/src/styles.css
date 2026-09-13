@@ -249,6 +249,23 @@ tbody tr:last-child td { border-bottom: none; }
 }
 .badge.warning { background: var(--warning-bg); color: var(--warning); }
 
+/* ── Κουμπί εμφανίζεται μόνο στο hover του γονικού — π.χ. αντιγραφή πρωτότυπου ──── */
+
+.reveal-on-hover {
+  position: relative;
+}
+.reveal-on-hover .hover-action {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.reveal-on-hover:hover .hover-action,
+.reveal-on-hover .hover-action:focus-visible {
+  opacity: 1;
+}
+
 /* ── Modal ────────────────────────────────────────────────────────────────── */
 
 .modal-backdrop {
