@@ -24,6 +24,9 @@ export function SourcesTab({
   const [notice, setNotice] = useState<string | null>(null);
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [busy, setBusy] = useState(false);
+  // null = «Χωρίς φάκελο» (ρίζα). Επιλέγει ποιος φάκελος φιλτράρει τη λίστα αρχείων
+  // και μέσα σε ποιον ανεβαίνει το επόμενο «Προσθήκη Αρχείου».
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
 
   // Ένα input για νέα αρχεία και ένα για Ενημέρωση υπάρχοντος.
   const addInput = useRef<HTMLInputElement>(null);
@@ -46,7 +49,11 @@ export function SourcesTab({
     setNotice(null);
     setBusy(true);
     try {
-      await api.upload(`/projects/${project.id}/files`, file);
+      await api.upload(
+        `/projects/${project.id}/files`,
+        file,
+        selectedFolderId ? { folderId: selectedFolderId } : {},
+      );
       reload();
       onChanged();
     } catch (err) {
@@ -88,11 +95,18 @@ export function SourcesTab({
 
   if (!data) return <div className="card muted">{el.app.loading}</div>;
 
+  // Αν διαγράφηκε ο επιλεγμένος φάκελος από άλλη ενέργεια, γυρίζουμε στη ρίζα.
+  const validSelection =
+    selectedFolderId === null || data.folders.some((f) => f.id === selectedFolderId);
+  const activeFolderId = validSelection ? selectedFolderId : null;
+  const visibleFiles = data.files.filter((f) => f.folderId === activeFolderId);
+
   return (
     <div>
       {/* Τα κουμπιά «στα δεξιά», όπως ζητήθηκε. */}
       <div className="spread" style={{ marginBottom: '1rem' }}>
         <div>
+          {busy && <span className="badge">{el.sources.uploading}</span>}
           {notice && <span className="badge">{notice}</span>}
           {error && <span className="field-error">{error}</span>}
         </div>
@@ -102,7 +116,7 @@ export function SourcesTab({
               {el.sources.newFolder}
             </button>
             <button className="primary" onClick={() => addInput.current?.click()} disabled={busy}>
-              {el.sources.addFile}
+              {busy && !updatingFileId ? el.app.loading : el.sources.addFile}
             </button>
           </div>
         )}
@@ -133,70 +147,108 @@ export function SourcesTab({
         }}
       />
 
-      {data.files.length === 0 ? (
+      {data.files.length === 0 && data.folders.length === 0 ? (
         <div className="card">
           <EmptyState title={el.sources.empty} hint={el.sources.emptyHint} />
         </div>
       ) : (
-        <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
-          <table>
-            <thead>
-              <tr>
-                <th>{el.sources.addFile.replace('Προσθήκη ', '')}</th>
-                <th>{el.sources.strings}</th>
-                <th>{el.sources.revision}</th>
-                <th style={{ minWidth: 140 }}>{el.dashboard.progress}</th>
-                <th className="hide-narrow">{el.members.memberSince}</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {data.files.map((file) => (
-                <tr key={file.id}>
-                  <td>
-                    <button
-                      className="ghost"
-                      style={{ padding: 0, color: 'var(--accent)' }}
-                      onClick={() => navigate(`/projects/${project.id}/files/${file.id}`)}
-                    >
-                      {file.name}
-                    </button>
-                  </td>
-                  <td>{file.stringCount}</td>
-                  <td>{file.revision}</td>
-                  <td>
-                    <ProgressBar progress={file.progress} showLabel={false} />
-                    <span className="muted" style={{ fontSize: '0.85em' }}>
-                      {file.progress.translated}/{file.progress.total}
-                    </span>
-                  </td>
-                  <td className="hide-narrow muted">{formatDate(file.updatedAt)}</td>
-                  <td>
-                    {isManager && (
-                      <div className="row" style={{ justifyContent: 'flex-end' }}>
-                        <button
-                          onClick={() => {
-                            setUpdatingFileId(file.id);
-                            updateInput.current?.click();
-                          }}
-                          disabled={busy}
-                        >
-                          {el.sources.update}
-                        </button>
-                        <button
-                          className="ghost danger"
-                          onClick={() => void handleDelete(file)}
-                          title={el.sources.deleteFile}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="row" style={{ alignItems: 'flex-start', gap: '1rem' }}>
+          {/* Λίστα φακέλων: το «Νέος Φάκελος» έκανε ήδη τη δουλειά του στον server, απλά
+              δεν υπήρχε πουθενά να φαίνεται το αποτέλεσμα — αυτό είναι η διόρθωση. */}
+          <div className="card" style={{ width: 200, flexShrink: 0, padding: '0.5rem' }}>
+            <FolderRow
+              label={el.sources.rootFolder}
+              active={activeFolderId === null}
+              onClick={() => setSelectedFolderId(null)}
+              count={data.files.filter((f) => f.folderId === null).length}
+            />
+            {data.folders.length === 0 ? (
+              <div className="muted" style={{ padding: '0.5rem 0.6rem', fontSize: '0.85em' }}>
+                {el.sources.noFolders}
+              </div>
+            ) : (
+              data.folders.map((folder) => (
+                <FolderRow
+                  key={folder.id}
+                  label={folder.name}
+                  active={activeFolderId === folder.id}
+                  onClick={() => setSelectedFolderId(folder.id)}
+                  count={data.files.filter((f) => f.folderId === folder.id).length}
+                />
+              ))
+            )}
+          </div>
+
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {visibleFiles.length === 0 ? (
+              <div className="card">
+                <EmptyState title={el.sources.empty} hint={el.sources.emptyHint} />
+              </div>
+            ) : (
+              <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>{el.sources.addFile.replace('Προσθήκη ', '')}</th>
+                      <th>{el.sources.strings}</th>
+                      <th>{el.sources.revision}</th>
+                      <th style={{ minWidth: 140 }}>{el.dashboard.progress}</th>
+                      <th className="hide-narrow">{el.members.memberSince}</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleFiles.map((file) => (
+                      <tr key={file.id}>
+                        <td>
+                          <button
+                            className="ghost"
+                            style={{ padding: 0, color: 'var(--accent)' }}
+                            onClick={() => navigate(`/projects/${project.id}/files/${file.id}`)}
+                          >
+                            {file.name}
+                          </button>
+                        </td>
+                        <td>{file.stringCount}</td>
+                        <td>{file.revision}</td>
+                        <td>
+                          <ProgressBar progress={file.progress} showLabel={false} />
+                          <span className="muted" style={{ fontSize: '0.85em' }}>
+                            {file.progress.translated}/{file.progress.total}
+                          </span>
+                        </td>
+                        <td className="hide-narrow muted">{formatDate(file.updatedAt)}</td>
+                        <td>
+                          {isManager && (
+                            <div className="row" style={{ justifyContent: 'flex-end' }}>
+                              <button
+                                onClick={() => {
+                                  setUpdatingFileId(file.id);
+                                  updateInput.current?.click();
+                                }}
+                                disabled={busy}
+                              >
+                                {busy && updatingFileId === file.id
+                                  ? el.app.loading
+                                  : el.sources.update}
+                              </button>
+                              <button
+                                className="ghost danger"
+                                onClick={() => void handleDelete(file)}
+                                title={el.sources.deleteFile}
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -204,13 +256,43 @@ export function SourcesTab({
         <NewFolderModal
           projectId={project.id}
           onClose={() => setCreatingFolder(false)}
-          onCreated={() => {
+          onCreated={(folder) => {
             setCreatingFolder(false);
+            setSelectedFolderId(folder.id);
             reload();
           }}
         />
       )}
     </div>
+  );
+}
+
+function FolderRow({
+  label,
+  active,
+  onClick,
+  count,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  count: number;
+}) {
+  return (
+    <button
+      className={active ? 'primary' : 'ghost'}
+      onClick={onClick}
+      style={{
+        width: '100%',
+        textAlign: 'start',
+        justifyContent: 'space-between',
+        display: 'flex',
+        marginBottom: '0.25rem',
+      }}
+    >
+      <span>📁 {label}</span>
+      <span className={active ? '' : 'muted'}>{count}</span>
+    </button>
   );
 }
 
@@ -221,18 +303,22 @@ function NewFolderModal({
 }: {
   projectId: string;
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: (folder: FolderNode) => void;
 }) {
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
+    setError(null);
+    setBusy(true);
     try {
-      await api.post(`/projects/${projectId}/files/folders`, { name });
-      onCreated();
+      const folder = await api.post<FolderNode>(`/projects/${projectId}/files/folders`, { name });
+      onCreated(folder);
     } catch (err) {
       setError(err instanceof ApiRequestError ? err.message : el.app.error);
+      setBusy(false);
     }
   }
 
@@ -252,11 +338,11 @@ function NewFolderModal({
         </div>
         {error && <div className="field-error">{error}</div>}
         <div className="row" style={{ justifyContent: 'flex-end' }}>
-          <button type="button" onClick={onClose}>
+          <button type="button" onClick={onClose} disabled={busy}>
             {el.app.cancel}
           </button>
-          <button type="submit" className="primary" disabled={!name.trim()}>
-            {el.app.save}
+          <button type="submit" className="primary" disabled={busy || !name.trim()}>
+            {busy ? el.app.loading : el.app.save}
           </button>
         </div>
       </form>
