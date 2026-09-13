@@ -37,6 +37,14 @@ export const el = {
     hasAccount: 'Έχεις ήδη λογαριασμό;',
     invitedTo: (project: string) => `Προσκλήθηκες στο project «${project}»`,
     forgotPassword: 'Ξέχασες τον κωδικό;',
+    inviteLoginHint: 'Έχεις ήδη λογαριασμό με αυτό το email — συνδέσου για να μπεις στο project.',
+    existingAccountHint: 'Υπάρχει ήδη λογαριασμός με αυτό το email.',
+    acceptInviteTitle: 'Πρόσκληση σε project',
+    acceptInviteAs: (username: string) => `Είσαι συνδεδεμένος ως ${username}.`,
+    acceptInviteButton: 'Αποδοχή πρόσκλησης',
+    inviteEmailMismatch: (inviteEmail: string, username: string) =>
+      `Η πρόσκληση αφορά το ${inviteEmail}, αλλά είσαι συνδεδεμένος ως ${username}.`,
+    logoutAndSwitch: 'Αποσύνδεση και σύνδεση με άλλο λογαριασμό',
   },
 
   passwordReset: {

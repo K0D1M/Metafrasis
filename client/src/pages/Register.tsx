@@ -26,6 +26,9 @@ export function Register() {
   const [error, setError] = useState<string | null>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  // Το email της πρόσκλησης ανήκει ήδη σε λογαριασμό — η εγγραφή δεν βγάζει νόημα,
+  // ο χρήστης πρέπει να συνδεθεί και αυτό θα κάνει την αποδοχή.
+  const [existingAccount, setExistingAccount] = useState(false);
 
   // Ο σύνδεσμος πρόσκλησης προσυμπληρώνει το email και δείχνει σε ποιο project μπαίνει ο χρήστης.
   useEffect(() => {
@@ -43,6 +46,7 @@ export function Register() {
     event.preventDefault();
     setError(null);
     setFields({});
+    setExistingAccount(false);
     setBusy(true);
     try {
       await register({ email, username, password, ...(inviteToken ? { inviteToken } : {}) });
@@ -51,6 +55,9 @@ export function Register() {
       if (err instanceof ApiRequestError) {
         setError(err.message);
         setFields(err.fields ?? {});
+        // 409 σε εγγραφή με πρόσκληση σημαίνει σχεδόν πάντα ότι το email υπάρχει ήδη —
+        // ο σωστός δρόμος είναι σύνδεση, όχι νέα προσπάθεια εγγραφής.
+        if (err.status === 409 && inviteToken) setExistingAccount(true);
       } else {
         setError(el.app.error);
       }
@@ -121,13 +128,20 @@ export function Register() {
         </div>
 
         {error && <div className="field-error">{error}</div>}
+        {existingAccount && (
+          <div className="field-error">
+            {el.auth.existingAccountHint}{' '}
+            <Link to={`/login?invite=${inviteToken}`}>{el.auth.login}</Link>
+          </div>
+        )}
 
         <button type="submit" className="primary" disabled={busy} style={{ width: '100%' }}>
           {busy ? el.app.loading : el.auth.register}
         </button>
 
         <p className="muted" style={{ marginBottom: 0, textAlign: 'center' }}>
-          {el.auth.hasAccount} <Link to="/login">{el.auth.login}</Link>
+          {el.auth.hasAccount}{' '}
+          <Link to={inviteToken ? `/login?invite=${inviteToken}` : '/login'}>{el.auth.login}</Link>
         </p>
       </form>
     </div>

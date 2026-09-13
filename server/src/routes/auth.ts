@@ -250,3 +250,62 @@ authRouter.get('/invite/:token', async (req, res) => {
     message: invite.message,
   });
 });
+
+/**
+ * Αποδοχή πρόσκλησης από ήδη συνδεδεμένο χρήστη — η περίπτωση που δεν καλυπτόταν πριν:
+ * κάποιος με λογαριασμό λαμβάνει σύνδεσμο πρόσκλησης, δεν μπορεί να κάνει εγγραφή (το
+ * email υπάρχει ήδη) και μέχρι τώρα δεν υπήρχε κανένας τρόπος να μπει στο project.
+ *
+ * Σύγκριση email χωρίς διάκριση πεζών/κεφαλαίων — τα emails δεν κανονικοποιούνται
+ * πουθενά αλλού στην εφαρμογή, οπότε δεν υποθέτουμε ότι ταιριάζουν byte-προς-byte.
+ */
+authRouter.post('/invite/:token/accept', requireAuth, async (req, res) => {
+  const invite = await prisma.invite.findUnique({ where: { token: req.params.token } });
+
+  if (!invite || invite.acceptedAt || invite.expiresAt < new Date()) {
+    res.status(400).json({ error: 'Ο σύνδεσμος πρόσκλησης δεν είναι έγκυρος ή έχει λήξει' });
+    return;
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: req.userId! } });
+  if (!user) {
+    res.status(401).json({ error: 'Απαιτείται σύνδεση' });
+    return;
+  }
+
+  if (user.email.toLowerCase() !== invite.email.toLowerCase()) {
+    // Η πρόσκληση αφορά συγκεκριμένο email — δεν επιτρέπουμε σε άλλον λογαριασμό να τη
+    // «κλέψει» επειδή έχει απλά ανοιχτή συνεδρία στο ίδιο πρόγραμμα περιήγησης.
+    res.status(403).json({
+      error: `Η πρόσκληση αφορά το ${invite.email} — συνδέθηκες ως ${user.email}`,
+    });
+    return;
+  }
+
+  const alreadyMember = await prisma.projectMember.findUnique({
+    where: { projectId_userId: { projectId: invite.projectId, userId: user.id } },
+  });
+  if (alreadyMember) {
+    // Ήδη μέλος — σημειώνουμε την πρόσκληση ως αποδεκτή ούτως ή άλλως, ώστε ο σύνδεσμος
+    // να μη μείνει επ' αόριστον ενεργός, αλλά χωρίς σφάλμα προς τον χρήστη.
+    await prisma.invite.update({ where: { id: invite.id }, data: { acceptedAt: new Date() } });
+    res.status(204).end();
+    return;
+  }
+
+  await prisma.$transaction([
+    prisma.projectMember.create({
+      data: { projectId: invite.projectId, userId: user.id, role: invite.role },
+    }),
+    prisma.invite.update({ where: { id: invite.id }, data: { acceptedAt: new Date() } }),
+  ]);
+
+  await logActivity({
+    projectId: invite.projectId,
+    userId: user.id,
+    action: ActivityAction.MEMBER_JOIN,
+    target: user.username,
+  });
+
+  res.status(204).end();
+});

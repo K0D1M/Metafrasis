@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useSearchParams } from 'react-router-dom';
 import { el } from './i18n/el.js';
 import { AuthProvider, useAuth } from './lib/auth.js';
 import { ThemeProvider } from './lib/theme.js';
@@ -6,6 +6,7 @@ import { Login } from './pages/Login.js';
 import { Register } from './pages/Register.js';
 import { ForgotPassword } from './pages/ForgotPassword.js';
 import { ResetPassword } from './pages/ResetPassword.js';
+import { AcceptInvite } from './pages/AcceptInvite.js';
 import { ProjectList } from './pages/ProjectList.js';
 import { ProjectWindow } from './pages/ProjectWindow.js';
 import { StringEditor } from './pages/StringEditor.js';
@@ -18,11 +19,20 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-/** Συνδεδεμένος χρήστης δεν χρειάζεται τις σελίδες σύνδεσης/εγγραφής. */
+/**
+ * Συνδεδεμένος χρήστης δεν χρειάζεται τις σελίδες σύνδεσης/εγγραφής — εκτός αν έφτασε
+ * εδώ μέσω σύνδεσμου πρόσκλησης, οπότε πρέπει να δει την επιλογή αποδοχής και όχι να
+ * πεταχτεί κατευθείαν στην αρχική χωρίς να μπει ποτέ στο project.
+ */
 function RedirectIfAuthed({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  const [params] = useSearchParams();
+  const inviteToken = params.get('invite');
+
   if (loading) return <div style={{ padding: '2rem' }}>{el.app.loading}</div>;
-  if (user) return <Navigate to="/" replace />;
+  if (user) {
+    return inviteToken ? <Navigate to={`/accept-invite?invite=${inviteToken}`} replace /> : <Navigate to="/" replace />;
+  }
   return <>{children}</>;
 }
 
@@ -62,6 +72,14 @@ export function App() {
                 <RedirectIfAuthed>
                   <ResetPassword />
                 </RedirectIfAuthed>
+              }
+            />
+            <Route
+              path="/accept-invite"
+              element={
+                <RequireAuth>
+                  <AcceptInvite />
+                </RequireAuth>
               }
             />
             <Route

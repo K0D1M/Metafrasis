@@ -1,13 +1,18 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { el } from '../i18n/el.js';
 import { useAuth } from '../lib/auth.js';
-import { ApiRequestError } from '../lib/api.js';
+import { api, ApiRequestError } from '../lib/api.js';
 import { ThemeToggle } from '../components/common.js';
 
 export function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  // Παρόν όταν κάποιος με ήδη λογαριασμό πατά σύνδεσμο πρόσκλησης: η εγγραφή θα
+  // αποτύχει (το email υπάρχει ήδη), οπότε η σύνδεση εδώ κάνει και την αποδοχή.
+  const inviteToken = params.get('invite');
+
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -19,6 +24,17 @@ export function Login() {
     setBusy(true);
     try {
       await login({ identifier, password });
+
+      if (inviteToken) {
+        try {
+          await api.post(`/auth/invite/${inviteToken}/accept`);
+        } catch (err) {
+          // Η σύνδεση πέτυχε ούτως ή άλλως — δεν μπλοκάρουμε τον χρήστη έξω από την
+          // εφαρμογή επειδή η πρόσκληση ήταν άκυρη ή έληξε. Απλά το αναφέρουμε.
+          setError(err instanceof ApiRequestError ? err.message : el.app.error);
+        }
+      }
+
       navigate('/');
     } catch (err) {
       setError(err instanceof ApiRequestError ? err.message : el.app.error);
@@ -36,6 +52,10 @@ export function Login() {
 
       <form className="card" onSubmit={onSubmit}>
         <h2>{el.auth.loginTitle}</h2>
+
+        {inviteToken && <div className="card" style={{ marginBottom: '1rem', background: 'var(--surface-2)' }}>
+          {el.auth.inviteLoginHint}
+        </div>}
 
         <div className="field">
           <label htmlFor="identifier">{el.auth.identifier}</label>
@@ -72,7 +92,10 @@ export function Login() {
           <Link to="/forgot-password">{el.auth.forgotPassword}</Link>
         </p>
         <p className="muted" style={{ marginBottom: 0, textAlign: 'center' }}>
-          {el.auth.noAccount} <Link to="/register">{el.auth.register}</Link>
+          {el.auth.noAccount}{' '}
+          <Link to={inviteToken ? `/register?invite=${inviteToken}` : '/register'}>
+            {el.auth.register}
+          </Link>
         </p>
       </form>
     </div>
