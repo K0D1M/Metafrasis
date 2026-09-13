@@ -1,4 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type WebSocketLikeConstructor } from '@supabase/supabase-js';
+import WebSocket from 'ws';
 
 /**
  * Client Supabase για τον server, με το secret key — παρακάμπτει το RLS του bucket.
@@ -16,6 +17,10 @@ if (!SUPABASE_URL || !SUPABASE_SECRET_KEY) {
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY, {
   auth: { persistSession: false },
+  // Το createClient αρχικοποιεί πάντα εσωτερικό RealtimeClient (δεν το χρησιμοποιούμε
+  // καθόλου εδώ — μόνο Storage), και αυτό χρειάζεται WebSocket global. Σε Node < 22 δεν
+  // υπάρχει ενσωματωμένο, οπότε ρίχνει αμέσως στο createClient χωρίς αυτό.
+  realtime: { transport: WebSocket as unknown as WebSocketLikeConstructor },
 });
 
 /** Ιδιωτικό bucket: η πρόσβαση περνά πάντα από το requireProjectRole() του API, όχι από δημόσιο URL. */
