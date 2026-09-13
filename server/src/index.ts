@@ -15,15 +15,15 @@ import { activityRouter } from './routes/activity.js';
 import { translationsRouter } from './routes/translations.js';
 import { requireAuth } from './auth.js';
 import { ensureScreenshotsBucket } from './storage.js';
+import { CLIENT_ORIGIN, IS_PRODUCTION } from './config.js';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 3001);
 const MAX_SCREENSHOT_MB = Math.round(MAX_SCREENSHOT_BYTES / (1024 * 1024));
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN ?? 'http://localhost:5173';
 
 // Σε production ο ίδιος server σερβίρει και το build του client (ίδιο origin, βλ. παρακάτω)·
 // τα CORS headers χρειάζονται μόνο στο dev, όπου client και API τρέχουν σε άλλη θύρα.
-const IS_DEV = process.env.NODE_ENV !== 'production';
+const IS_DEV = !IS_PRODUCTION;
 
 app.use(express.json({ limit: '12mb' }));
 app.use(cookieParser());

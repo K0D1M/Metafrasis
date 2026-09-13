@@ -13,6 +13,7 @@ import { prisma } from '../db.js';
 import { requireAuth, requireProjectRole } from '../auth.js';
 import { projectProgress } from '../services/progress.js';
 import { logActivity } from '../services/activity.js';
+import { CLIENT_ORIGIN } from '../config.js';
 
 export const projectsRouter: Router = Router();
 
@@ -278,9 +279,8 @@ projectsRouter.post(
     });
 
     // Χωρίς SMTP σε αυτή τη φάση: ο σύνδεσμος επιστρέφεται για αντιγραφή από τον διαχειριστή.
-    const origin = process.env.CLIENT_ORIGIN ?? 'http://localhost:5173';
     res.status(201).json({
-      url: `${origin}/register?invite=${token}`,
+      url: `${CLIENT_ORIGIN}/register?invite=${token}`,
       email,
       role,
       expiresAt: expiresAt.toISOString(),

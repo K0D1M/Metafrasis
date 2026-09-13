@@ -12,6 +12,7 @@ import {
 } from '@metafrasis/shared';
 import { prisma } from '../db.js';
 import { logActivity } from '../services/activity.js';
+import { CLIENT_ORIGIN } from '../config.js';
 import {
   hashPassword,
   verifyPassword,
@@ -140,7 +141,6 @@ authRouter.post('/password-reset/request', async (req, res) => {
   }
 
   const user = await findByIdentifier(parsed.data.identifier);
-  const origin = process.env.CLIENT_ORIGIN ?? 'http://localhost:5173';
 
   if (!user) {
     // Ίδια απάντηση σχήματος με επιτυχία, αλλά χωρίς σύνδεσμο — δεν επιβεβαιώνουμε ούτε
@@ -155,7 +155,7 @@ authRouter.post('/password-reset/request', async (req, res) => {
   await prisma.passwordReset.create({ data: { userId: user.id, token, expiresAt } });
 
   res.json({
-    url: `${origin}/reset-password?token=${token}`,
+    url: `${CLIENT_ORIGIN}/reset-password?token=${token}`,
     expiresAt: expiresAt.toISOString(),
   } satisfies PasswordResetResult);
 });
