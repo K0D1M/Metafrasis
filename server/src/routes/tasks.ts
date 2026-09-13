@@ -3,6 +3,7 @@ import {
   ActivityAction,
   createTaskSchema,
   createCommentSchema,
+  NotificationType,
   Role,
   TaskStatus,
   type TaskView,
@@ -10,6 +11,7 @@ import {
 import { prisma } from '../db.js';
 import { requireProjectRole } from '../auth.js';
 import { logActivity } from '../services/activity.js';
+import { notify } from '../services/notify.js';
 
 export const tasksRouter: Router = Router({ mergeParams: true });
 
@@ -120,6 +122,15 @@ tasksRouter.post('/', requireProjectRole({ managerOnly: true }), async (req, res
     userId: req.userId!,
     action: ActivityAction.TASK_CREATE,
     target: title,
+  });
+
+  await notify({
+    userId: assigneeId,
+    projectId,
+    type: NotificationType.TASK_ASSIGN,
+    target: title,
+    link: `/projects/${projectId}?tab=tasks`,
+    actorId: req.userId!,
   });
 
   res.status(201).json(toView(task));

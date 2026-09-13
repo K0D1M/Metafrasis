@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   ActivityAction,
   createQaReportSchema,
+  NotificationType,
   QaStatus,
   Role,
   type QaReportView,
@@ -10,6 +11,7 @@ import {
 import { prisma } from '../db.js';
 import { requireProjectRole } from '../auth.js';
 import { logActivity } from '../services/activity.js';
+import { notify, notifyMany } from '../services/notify.js';
 
 export const qaRouter: Router = Router({ mergeParams: true });
 
@@ -98,6 +100,19 @@ qaRouter.post('/', requireProjectRole(), async (req, res) => {
     target: title,
   });
 
+  // Ειδοποιούνται οι διαχειριστές — αυτοί ενεργούν στις αναφορές, όχι όλα τα μέλη.
+  const managers = await prisma.projectMember.findMany({
+    where: { projectId, role: Role.MANAGER },
+    select: { userId: true },
+  });
+  await notifyMany(managers.map((m) => m.userId), {
+    projectId,
+    type: NotificationType.QA_CREATE,
+    target: title,
+    link: `/projects/${projectId}?tab=qa`,
+    actorId: req.userId!,
+  });
+
   res.status(201).json(toView(report));
 });
 
@@ -127,6 +142,15 @@ qaRouter.patch('/:reportId', requireProjectRole(), async (req, res) => {
       userId: req.userId!,
       action: ActivityAction.QA_RESOLVE,
       target: report.title,
+    });
+
+    await notify({
+      userId: report.authorId,
+      projectId: req.params.projectId!,
+      type: NotificationType.QA_RESOLVE,
+      target: report.title,
+      link: `/projects/${req.params.projectId}?tab=qa`,
+      actorId: req.userId!,
     });
   }
 

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { Role, type ProgressStats } from '@metafrasis/shared';
 import { el } from '../i18n/el.js';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.js';
 import { AccountMenu, ProgressBar, ThemeToggle } from '../components/common.js';
+import { NotificationBell } from '../components/NotificationBell.js';
 import { SourcesTab } from '../tabs/Sources.js';
 import { MembersTab } from '../tabs/Members.js';
 import { TranslationsTab } from '../tabs/Translations.js';
@@ -51,11 +52,25 @@ const TAB_ORDER: Array<{ key: TabKey; label: string }> = [
   { key: 'settings', label: el.tabs.settings },
 ];
 
+const TAB_KEYS = TAB_ORDER.map((t) => t.key);
+
+function isTabKey(value: string | null): value is TabKey {
+  return value !== null && (TAB_KEYS as string[]).includes(value);
+}
+
 export function ProjectWindow() {
   const { projectId } = useParams<{ projectId: string }>();
   const { logout } = useAuth();
   const [project, setProject] = useState<ProjectDetail | null>(null);
-  const [tab, setTab] = useState<TabKey>('dashboard');
+  // Το tab διαβάζεται από το URL (?tab=...) ώστε ένας σύνδεσμος ειδοποίησης να μπορεί
+  // να ανοίγει κατευθείαν στη σωστή καρτέλα, όχι πάντα στο Dashboard.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const tab: TabKey = isTabKey(tabParam) ? tabParam : 'dashboard';
+
+  function setTab(next: TabKey) {
+    setSearchParams(next === 'dashboard' ? {} : { tab: next });
+  }
 
   function reload() {
     if (projectId) api.get<ProjectDetail>(`/projects/${projectId}`).then(setProject).catch(() => {});
@@ -83,6 +98,7 @@ export function ProjectWindow() {
         </div>
         <div className="row">
           <ThemeToggle />
+          <NotificationBell />
           <AccountMenu />
           <button className="ghost" onClick={() => void logout()}>
             {el.auth.logout}

@@ -301,6 +301,35 @@ export interface ActivityView {
   user: { id: string; username: string; avatarUrl: string | null };
 }
 
+/* ── Ειδοποιήσεις ──────────────────────────────────────────────────────────── */
+
+/**
+ * Σταθερά αναγνωριστικά για ειδοποιήσεις ανά μέλος — παράλληλο λεξιλόγιο με το
+ * ActivityAction, που είναι κοινό log για όλο το project. Ίδιες τιμές string όπου
+ * αφορούν το ίδιο γεγονός (π.χ. "file.upload"), ώστε να μη χρειάζονται δύο λεξιλόγια.
+ */
+export const NotificationType = {
+  TASK_ASSIGN: 'task.assign',
+  COMMENT_REPLY: 'comment.reply',
+  QA_CREATE: ActivityAction.QA_CREATE,
+  QA_RESOLVE: ActivityAction.QA_RESOLVE,
+  FILE_UPLOAD: ActivityAction.FILE_UPLOAD,
+  FILE_UPDATE: ActivityAction.FILE_UPDATE,
+} as const;
+
+export type NotificationType = (typeof NotificationType)[keyof typeof NotificationType];
+
+export interface NotificationView {
+  id: string;
+  projectId: string;
+  projectName: string;
+  type: string;
+  target: string | null;
+  link: string | null;
+  read: boolean;
+  createdAt: string;
+}
+
 /* ── Ρυθμίσεις ─────────────────────────────────────────────────────────────── */
 
 export const updateSettingsSchema = z.object({

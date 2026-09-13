@@ -40,29 +40,31 @@ model User {
   qaResolved     QaReport[]      @relation("QaResolver")
   activities     Activity[]
   passwordResets PasswordReset[]
+  notifications  Notification[]
 
   @@index([email])
 }
 
 model Project {
-  id             String   @id @default(cuid())
-  name           String
+  id                   String   @id @default(cuid())
+  name                 String
   /// Κωδικοί γλωσσών, π.χ. "en".
-  sourceLanguage String
+  sourceLanguage       String
   /// JSON πίνακας κωδικών γλωσσών-στόχων, π.χ. ["el"].
-  targetLanguages String
+  targetLanguages      String
   /// Ορατότητα της καρτέλας Δραστηριότητα στους μη-διαχειριστές.
-  activityVisibleToAll Boolean @default(false)
-  createdAt      DateTime @default(now())
+  activityVisibleToAll Boolean  @default(false)
+  createdAt            DateTime @default(now())
 
-  members     ProjectMember[]
-  folders     Folder[]
-  files       SourceFile[]
-  invites     Invite[]
-  screenshots Screenshot[]
-  tasks       Task[]
-  qaReports   QaReport[]
-  activities  Activity[]
+  members       ProjectMember[]
+  folders       Folder[]
+  files         SourceFile[]
+  invites       Invite[]
+  screenshots   Screenshot[]
+  tasks         Task[]
+  qaReports     QaReport[]
+  activities    Activity[]
+  notifications Notification[]
 }
 
 model ProjectMember {
@@ -132,17 +134,17 @@ model FileVersion {
 
 /// Ένα μεταφράσιμο κείμενο, σταθερό ανά διαδρομή κλειδιού μέσα στο αρχείο.
 model SourceString {
-  id         String  @id @default(cuid())
-  fileId     String
+  id          String  @id @default(cuid())
+  fileId      String
   /// Διαδρομή κλειδιού, π.χ. "chapter1.intro.line1".
-  key        String
-  sourceText String
+  key         String
+  sourceText  String
   /// Σειρά εμφάνισης στο αρχείο.
-  order      Int
+  order       Int
   /// Το πρωτότυπο άλλαξε σε νεότερη αναθεώρηση — χρειάζεται έλεγχος.
   needsReview Boolean @default(false)
   /// Το κλειδί έλειπε από νεότερη αναθεώρηση. Δεν διαγράφουμε ποτέ — μπορεί να επανέλθει.
-  removed    Boolean @default(false)
+  removed     Boolean @default(false)
 
   file         SourceFile    @relation(fields: [fileId], references: [id], onDelete: Cascade)
   translations Translation[]
@@ -154,12 +156,12 @@ model SourceString {
 }
 
 model Translation {
-  id         String   @id @default(cuid())
-  stringId   String
-  language   String
-  text       String
-  authorId   String
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(cuid())
+  stringId  String
+  language  String
+  text      String
+  authorId  String
+  updatedAt DateTime @updatedAt
 
   string SourceString @relation(fields: [stringId], references: [id], onDelete: Cascade)
   author User         @relation(fields: [authorId], references: [id])
@@ -187,16 +189,16 @@ model Comment {
 
 /// Στιγμιότυπο οθόνης. Το αρχείο ζει στο server/uploads· εδώ μόνο η διαδρομή του.
 model Screenshot {
-  id         String   @id @default(cuid())
-  projectId  String
+  id           String   @id @default(cuid())
+  projectId    String
   /// Όνομα αρχείου στον δίσκο — τυχαίο, ώστε να μην συγκρούονται ανεβάσματα.
-  storedName String
+  storedName   String
   /// Το αρχικό όνομα, όπως το είδε ο χρήστης.
   originalName String
-  mimeType   String
-  sizeBytes  Int
-  uploadedBy String
-  uploadedAt DateTime @default(now())
+  mimeType     String
+  sizeBytes    Int
+  uploadedBy   String
+  uploadedAt   DateTime @default(now())
 
   project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   uploader User    @relation(fields: [uploadedBy], references: [id])
@@ -253,20 +255,20 @@ model TaskComment {
 
 /// Αναφορά ποιότητας από μέλος (καρτέλα Αναφορές QA).
 model QaReport {
-  id          String    @id @default(cuid())
-  projectId   String
+  id           String    @id @default(cuid())
+  projectId    String
   /// Προαιρετική σύνδεση με συγκεκριμένο κείμενο.
-  stringId    String?
-  title       String
-  description String
+  stringId     String?
+  title        String
+  description  String
   /// "LOW" | "MEDIUM" | "HIGH"
-  severity    String    @default("MEDIUM")
+  severity     String    @default("MEDIUM")
   /// "OPEN" | "RESOLVED"
-  status      String    @default("OPEN")
-  authorId    String
+  status       String    @default("OPEN")
+  authorId     String
   resolvedById String?
-  createdAt   DateTime  @default(now())
-  resolvedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  resolvedAt   DateTime?
 
   project    Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   string     SourceString? @relation(fields: [stringId], references: [id], onDelete: SetNull)
@@ -291,6 +293,27 @@ model Activity {
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([projectId, createdAt])
+}
+
+/// Ειδοποίηση για ΣΥΓΚΕΚΡΙΜΕΝΟ μέλος — σε αντίθεση με το Activity που είναι κοινό log
+/// για όλο το project. Δημιουργείται παράλληλα με το Activity στα ίδια σημεία του κώδικα.
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  projectId String
+  /// Σταθερό αναγνωριστικό τύπου, π.χ. "task.assign" — το UI το μεταφράζει.
+  type      String
+  /// Περιγραφικό αντικείμενο, π.χ. τίτλος εργασίας ή κλειδί κειμένου.
+  target    String?
+  /// Διαδρομή προς το σχετικό σημείο του UI, για κλικ-και-μετάβαση.
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
 }
 
 /// Αίτημα επαναφοράς κωδικού. Παράλληλο μοντέλο με το Invite: token, λήξη, χρήση μία φορά.

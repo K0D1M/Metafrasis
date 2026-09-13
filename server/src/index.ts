@@ -13,6 +13,7 @@ import { tasksRouter } from './routes/tasks.js';
 import { qaRouter } from './routes/qa.js';
 import { activityRouter } from './routes/activity.js';
 import { translationsRouter } from './routes/translations.js';
+import { notificationsRouter } from './routes/notifications.js';
 import { requireAuth } from './auth.js';
 import { ensureScreenshotsBucket } from './storage.js';
 import { CLIENT_ORIGIN, IS_PRODUCTION } from './config.js';
@@ -50,6 +51,8 @@ app.get('/api/health', (_req, res) => {
 // τοπικά· το API επιστρέφει υπογεγραμμένους συνδέσμους ανά αίτημα (δες routes/screenshots.ts).
 
 app.use('/api/auth', authRouter);
+// Χωρίς :projectId — δες σχόλιο στο routes/notifications.ts.
+app.use('/api/notifications', notificationsRouter);
 app.use('/api/projects', projectsRouter);
 // Οι routers μοιράζονται το :projectId και κάνουν οι ίδιοι τον έλεγχο ρόλου.
 app.use('/api/projects/:projectId/files', requireAuth, filesRouter);

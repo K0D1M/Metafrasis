@@ -3,12 +3,14 @@ import {
   ActivityAction,
   saveTranslationSchema,
   createCommentSchema,
+  NotificationType,
   type SourceStringView,
   type CommentView,
 } from '@metafrasis/shared';
 import { prisma } from '../db.js';
 import { requireProjectRole } from '../auth.js';
 import { logActivity } from '../services/activity.js';
+import { notify } from '../services/notify.js';
 
 export const stringsRouter: Router = Router({ mergeParams: true });
 
@@ -178,9 +180,11 @@ stringsRouter.post('/strings/:stringId/comments', requireProjectRole(), async (r
   const { body, parentId } = parsed.data;
 
   // Η απάντηση πρέπει να ανήκει στο ίδιο κείμενο, αλλιώς μπερδεύονται οι συζητήσεις.
+  let parent: { id: string; authorId: string } | null = null;
   if (parentId) {
-    const parent = await prisma.comment.findFirst({
+    parent = await prisma.comment.findFirst({
       where: { id: parentId, stringId: target.id },
+      select: { id: true, authorId: true },
     });
     if (!parent) {
       res.status(400).json({ error: 'Το σχόλιο στο οποίο απαντάς δεν βρέθηκε' });
@@ -199,6 +203,30 @@ stringsRouter.post('/strings/:stringId/comments', requireProjectRole(), async (r
     action: ActivityAction.COMMENT_ADD,
     target: target.key,
   });
+
+  // Απάντηση: ειδοποιείται ο συγγραφέας του γονικού σχολίου. Νέο σχόλιο σε κείμενο με
+  // υπάρχουσα μετάφραση: ειδοποιείται ο μεταφραστής — αυτός είναι που θέλει να ξέρει.
+  // Το notify() παραλείπει σιωπηλά τον ίδιο τον σχολιαστή, όποια από τις δύο περιπτώσεις.
+  let recipientId: string | null = parent?.authorId ?? null;
+  if (!recipientId) {
+    const project = await prisma.project.findUnique({ where: { id: req.params.projectId! } });
+    const language = primaryTarget(project?.targetLanguages ?? '["el"]');
+    const translation = await prisma.translation.findUnique({
+      where: { stringId_language: { stringId: target.id, language } },
+      select: { authorId: true },
+    });
+    recipientId = translation?.authorId ?? null;
+  }
+  if (recipientId) {
+    await notify({
+      userId: recipientId,
+      projectId: req.params.projectId!,
+      type: NotificationType.COMMENT_REPLY,
+      target: target.key,
+      link: `/projects/${req.params.projectId}/files/${target.fileId}`,
+      actorId: req.userId!,
+    });
+  }
 
   res.status(201).json({
     id: comment.id,

@@ -11,8 +11,9 @@ import { parseJsonUpload, planIngest } from '../services/ingest.js';
 import { progressByFile } from '../services/progress.js';
 import { flatten, unflatten, type JsonValue } from '../services/jsonFlatten.js';
 import { logActivity } from '../services/activity.js';
+import { notifyMany } from '../services/notify.js';
 import { attachmentHeader } from '../services/contentDisposition.js';
-import { ActivityAction } from '@metafrasis/shared';
+import { ActivityAction, NotificationType } from '@metafrasis/shared';
 
 export const filesRouter: Router = Router({ mergeParams: true });
 
@@ -180,6 +181,27 @@ async function ingestUpload(params: {
   };
 }
 
+/** Ειδοποιεί όλα τα ΥΠΟΛΟΙΠΑ μέλη — απόφαση προδιαγραφής: όλοι, όχι μόνο όσοι έχουν ήδη σχέση με το αρχείο. */
+async function notifyOtherMembers(
+  projectId: string,
+  actorId: string,
+  type: (typeof NotificationType)['FILE_UPLOAD'] | (typeof NotificationType)['FILE_UPDATE'],
+  fileName: string,
+  fileId: string,
+): Promise<void> {
+  const members = await prisma.projectMember.findMany({
+    where: { projectId },
+    select: { userId: true },
+  });
+  await notifyMany(members.map((m) => m.userId), {
+    projectId,
+    type,
+    target: fileName,
+    link: `/projects/${projectId}/files/${fileId}`,
+    actorId,
+  });
+}
+
 filesRouter.post(
   '/',
   requireProjectRole({ managerOnly: true }),
@@ -206,6 +228,13 @@ filesRouter.post(
         action: ActivityAction.FILE_UPLOAD,
         target: req.file.originalname,
       });
+      await notifyOtherMembers(
+        req.params.projectId!,
+        req.userId!,
+        NotificationType.FILE_UPLOAD,
+        req.file.originalname,
+        result.fileId,
+      );
       res.status(201).json(result);
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : 'Αποτυχία εισαγωγής' });
@@ -247,6 +276,13 @@ filesRouter.post(
         action: ActivityAction.FILE_UPDATE,
         target: file.name,
       });
+      await notifyOtherMembers(
+        req.params.projectId!,
+        req.userId!,
+        NotificationType.FILE_UPDATE,
+        file.name,
+        file.id,
+      );
       res.json(result);
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : 'Αποτυχία ενημέρωσης' });

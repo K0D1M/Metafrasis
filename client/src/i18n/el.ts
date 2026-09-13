@@ -267,4 +267,20 @@ export const el = {
     toLight: 'Φωτεινό θέμα',
     toDark: 'Σκοτεινό θέμα',
   },
+
+  notifications: {
+    title: 'Ειδοποιήσεις',
+    empty: 'Καμία ειδοποίηση',
+    markAllRead: 'Σήμανση όλων ως αναγνωσμένα',
+  },
+
+  /** Ετικέτες για τα σταθερά αναγνωριστικά ειδοποιήσεων — παράλληλο με activityActions. */
+  notificationTypes: {
+    'task.assign': 'Σου ανατέθηκε η εργασία',
+    'comment.reply': 'Νέο σχόλιο στο κείμενο',
+    'qa.create': 'Νέα αναφορά QA',
+    'qa.resolve': 'Επιλύθηκε η αναφορά',
+    'file.upload': 'Νέο αρχείο',
+    'file.update': 'Ενημερώθηκε το αρχείο',
+  } as Record<string, string>,
 } as const;

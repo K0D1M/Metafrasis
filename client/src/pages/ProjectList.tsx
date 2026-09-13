@@ -5,6 +5,7 @@ import { el } from '../i18n/el.js';
 import { api, ApiRequestError } from '../lib/api.js';
 import { useAuth } from '../lib/auth.js';
 import { AccountMenu, EmptyState, Modal, ProgressBar, ThemeToggle } from '../components/common.js';
+import { NotificationBell } from '../components/NotificationBell.js';
 
 export function ProjectList() {
   const { logout } = useAuth();
@@ -21,6 +22,7 @@ export function ProjectList() {
         <h1 style={{ margin: 0 }}>{el.app.name}</h1>
         <div className="row">
           <ThemeToggle />
+          <NotificationBell />
           <AccountMenu />
           <button className="ghost" onClick={() => void logout()}>
             {el.auth.logout}
