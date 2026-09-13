@@ -7,7 +7,7 @@
     "postinstall": "prisma generate",
     "dev": "tsx watch src/index.ts",
     "build": "prisma generate && tsc",
-    "start": "prisma migrate deploy && node dist/server/src/index.js",
+    "start": "prisma migrate deploy && node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "db:seed": "node prisma/seed.mjs",

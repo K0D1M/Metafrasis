@@ -65,11 +65,9 @@ app.use('/api/projects/:projectId', requireAuth, stringsRouter);
  * Railway, ένα URL, χωρίς CORS. Ο φάκελος client/dist υπάρχει μόνο μετά το `npm run
  * build`· σε dev (όπου τρέχει το Vite ξεχωριστά) δεν υπάρχει, οπότε το παραλείπουμε.
  *
- * Η διαδρομή είναι σχετική με το ΜΕΤΑΓΛΩΤΤΙΣΜΕΝΟ index.js (dist/server/src/index.js),
- * όχι με το src/index.ts εδώ — το tsconfig έχει rootDir ".." (ώστε να μπαίνει μαζί και
- * το ../shared/src), οπότε το dist φωλιάζει ως dist/server/src/... αντί για dist/....
+ * Η διαδρομή είναι σχετική με το ΜΕΤΑΓΛΩΤΤΙΣΜΕΝΟ index.js (server/dist/index.js).
  */
-const clientDist = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../client/dist');
+const clientDist = resolve(dirname(fileURLToPath(import.meta.url)), '../../client/dist');
 
 if (existsSync(clientDist)) {
   app.use(express.static(clientDist));
