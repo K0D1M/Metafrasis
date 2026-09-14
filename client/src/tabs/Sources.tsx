@@ -4,6 +4,7 @@ import { Role, type FolderNode, type SourceFileSummary } from '@metafrasis/share
 import { el } from '../i18n/el.js';
 import { api, ApiRequestError } from '../lib/api.js';
 import { EmptyState, Modal, ProgressBar, formatDate } from '../components/common.js';
+import { DropZone } from '../components/DropZone.js';
 import type { ProjectDetail } from '../pages/ProjectWindow.js';
 
 interface SourcesResponse {
@@ -180,74 +181,84 @@ export function SourcesTab({
           </div>
 
           <div style={{ flex: 1, minWidth: 0 }}>
-            {visibleFiles.length === 0 ? (
-              <div className="card">
-                <EmptyState title={el.sources.empty} hint={el.sources.emptyHint} />
-              </div>
-            ) : (
-              <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>{el.sources.addFile.replace('Προσθήκη ', '')}</th>
-                      <th>{el.sources.strings}</th>
-                      <th>{el.sources.revision}</th>
-                      <th style={{ minWidth: 140 }}>{el.dashboard.progress}</th>
-                      <th className="hide-narrow">{el.members.memberSince}</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visibleFiles.map((file) => (
-                      <tr key={file.id}>
-                        <td>
-                          <button
-                            className="ghost"
-                            style={{ padding: 0, color: 'var(--accent)' }}
-                            onClick={() => navigate(`/projects/${project.id}/files/${file.id}`)}
-                          >
-                            {file.name}
-                          </button>
-                        </td>
-                        <td>{file.stringCount}</td>
-                        <td>{file.revision}</td>
-                        <td>
-                          <ProgressBar progress={file.progress} showLabel={false} />
-                          <span className="muted" style={{ fontSize: '0.85em' }}>
-                            {file.progress.translated}/{file.progress.total}
-                          </span>
-                        </td>
-                        <td className="hide-narrow muted">{formatDate(file.updatedAt)}</td>
-                        <td>
-                          {isManager && (
-                            <div className="row" style={{ justifyContent: 'flex-end' }}>
-                              <button
-                                onClick={() => {
-                                  setUpdatingFileId(file.id);
-                                  updateInput.current?.click();
-                                }}
-                                disabled={busy}
-                              >
-                                {busy && updatingFileId === file.id
-                                  ? el.app.loading
-                                  : el.sources.update}
-                              </button>
-                              <button
-                                className="ghost danger"
-                                onClick={() => void handleDelete(file)}
-                                title={el.sources.deleteFile}
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          )}
-                        </td>
+            <DropZone
+              accept="application/json,.json"
+              disabled={!isManager || busy}
+              onFiles={(files) => {
+                // Ίδια σημασιολογία με το κουμπί «Προσθήκη Αρχείου»: ένα αρχείο τη φορά.
+                const file = files[0];
+                if (file) void handleAdd(file);
+              }}
+            >
+              {visibleFiles.length === 0 ? (
+                <div className="card">
+                  <EmptyState title={el.sources.empty} hint={el.sources.emptyHint} />
+                </div>
+              ) : (
+                <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>{el.sources.addFile.replace('Προσθήκη ', '')}</th>
+                        <th>{el.sources.strings}</th>
+                        <th>{el.sources.revision}</th>
+                        <th style={{ minWidth: 140 }}>{el.dashboard.progress}</th>
+                        <th className="hide-narrow">{el.members.memberSince}</th>
+                        <th />
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                    </thead>
+                    <tbody>
+                      {visibleFiles.map((file) => (
+                        <tr key={file.id}>
+                          <td>
+                            <button
+                              className="ghost"
+                              style={{ padding: 0, color: 'var(--accent)' }}
+                              onClick={() => navigate(`/projects/${project.id}/files/${file.id}`)}
+                            >
+                              {file.name}
+                            </button>
+                          </td>
+                          <td>{file.stringCount}</td>
+                          <td>{file.revision}</td>
+                          <td>
+                            <ProgressBar progress={file.progress} showLabel={false} />
+                            <span className="muted" style={{ fontSize: '0.85em' }}>
+                              {file.progress.translated}/{file.progress.total}
+                            </span>
+                          </td>
+                          <td className="hide-narrow muted">{formatDate(file.updatedAt)}</td>
+                          <td>
+                            {isManager && (
+                              <div className="row" style={{ justifyContent: 'flex-end' }}>
+                                <button
+                                  onClick={() => {
+                                    setUpdatingFileId(file.id);
+                                    updateInput.current?.click();
+                                  }}
+                                  disabled={busy}
+                                >
+                                  {busy && updatingFileId === file.id
+                                    ? el.app.loading
+                                    : el.sources.update}
+                                </button>
+                                <button
+                                  className="ghost danger"
+                                  onClick={() => void handleDelete(file)}
+                                  title={el.sources.deleteFile}
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </DropZone>
           </div>
         </div>
       )}

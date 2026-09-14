@@ -7,6 +7,7 @@ import {
 import { el } from '../i18n/el.js';
 import { api, ApiRequestError } from '../lib/api.js';
 import { Avatar, EmptyState, Modal, formatDate } from '../components/common.js';
+import { DropZone } from '../components/DropZone.js';
 import { useAuth } from '../lib/auth.js';
 import type { ProjectDetail } from '../pages/ProjectWindow.js';
 
@@ -44,6 +45,14 @@ export function ScreenshotsTab({ project }: { project: ProjectDetail }) {
       setError(err instanceof ApiRequestError ? err.message : el.app.error);
     } finally {
       setBusy(false);
+    }
+  }
+
+  /** Πολλά αρχεία μπορούν να πέσουν μαζί με drag-and-drop — ανεβαίνουν ένα-ένα, όχι όλα
+   * παράλληλα, ώστε το busy/error state να αντιστοιχεί πάντα στο τρέχον ανέβασμα. */
+  async function handleUploadMany(files: File[]) {
+    for (const file of files) {
+      await handleUpload(file);
     }
   }
 
@@ -86,54 +95,60 @@ export function ScreenshotsTab({ project }: { project: ProjectDetail }) {
 
       {error && <div className="field-error" style={{ marginBottom: '0.75rem' }}>{error}</div>}
 
-      {items.length === 0 ? (
-        <div className="card">
-          <EmptyState title={el.screenshots.empty} hint={el.screenshots.emptyHint} />
-        </div>
-      ) : (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-            gap: '1rem',
-          }}
-        >
-          {items.map((item) => (
-            <button
-              key={item.id}
-              className="card"
-              onClick={() => setPreview(item)}
-              style={{ padding: 0, overflow: 'hidden', textAlign: 'start', cursor: 'zoom-in' }}
-            >
-              <img
-                src={item.url}
-                alt={item.originalName}
-                loading="lazy"
-                style={{
-                  width: '100%',
-                  aspectRatio: '16 / 10',
-                  objectFit: 'cover',
-                  display: 'block',
-                  background: 'var(--surface-2)',
-                }}
-              />
-              <div style={{ padding: '0.6rem' }}>
-                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {item.originalName}
+      <DropZone
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        disabled={busy}
+        onFiles={(files) => void handleUploadMany(files)}
+      >
+        {items.length === 0 ? (
+          <div className="card">
+            <EmptyState title={el.screenshots.empty} hint={el.screenshots.emptyHint} />
+          </div>
+        ) : (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+              gap: '1rem',
+            }}
+          >
+            {items.map((item) => (
+              <button
+                key={item.id}
+                className="card"
+                onClick={() => setPreview(item)}
+                style={{ padding: 0, overflow: 'hidden', textAlign: 'start', cursor: 'zoom-in' }}
+              >
+                <img
+                  src={item.url}
+                  alt={item.originalName}
+                  loading="lazy"
+                  style={{
+                    width: '100%',
+                    aspectRatio: '16 / 10',
+                    objectFit: 'cover',
+                    display: 'block',
+                    background: 'var(--surface-2)',
+                  }}
+                />
+                <div style={{ padding: '0.6rem' }}>
+                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {item.originalName}
+                  </div>
+                  <div className="row muted" style={{ fontSize: '0.85em', marginTop: '0.25rem' }}>
+                    <Avatar
+                      username={item.uploader.username}
+                      avatarUrl={item.uploader.avatarUrl}
+                      size={20}
+                    />
+                    {item.uploader.username} · {formatDate(item.uploadedAt)}
+                  </div>
                 </div>
-                <div className="row muted" style={{ fontSize: '0.85em', marginTop: '0.25rem' }}>
-                  <Avatar
-                    username={item.uploader.username}
-                    avatarUrl={item.uploader.avatarUrl}
-                    size={20}
-                  />
-                  {item.uploader.username} · {formatDate(item.uploadedAt)}
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
+              </button>
+            ))}
+          </div>
+        )}
+      </DropZone>
 
       {preview && (
         <Modal title={preview.originalName} onClose={() => setPreview(null)}>

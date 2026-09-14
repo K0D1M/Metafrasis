@@ -106,6 +106,7 @@ export function StringEditor() {
               >
                 <StringRow
                   projectId={projectId}
+                  index={row.index + 1}
                   item={item}
                   language={data.language}
                   onSaved={updateLocal}
@@ -125,6 +126,7 @@ export function StringEditor() {
 
 function StringRow({
   projectId,
+  index,
   item,
   language,
   onSaved,
@@ -132,6 +134,7 @@ function StringRow({
   onToggleComments,
 }: {
   projectId: string;
+  index: number;
   item: SourceStringView;
   language: string;
   onSaved: (id: string, text: string) => void;
@@ -171,9 +174,14 @@ function StringRow({
   return (
     <div style={{ borderBottom: '1px solid var(--border)', padding: '0.75rem 1rem' }}>
       <div className="spread" style={{ marginBottom: '0.4rem' }}>
-        <code className="muted" style={{ fontSize: '0.82em' }}>
-          {item.key}
-        </code>
+        <div className="row" style={{ gap: '0.5rem' }}>
+          <span className="muted" style={{ fontSize: '0.82em', minWidth: '2ch', textAlign: 'end' }}>
+            {index}
+          </span>
+          <code className="muted" style={{ fontSize: '0.82em' }}>
+            {item.key}
+          </code>
+        </div>
         <div className="row">
           {item.needsReview && (
             <span className="badge warning" title={el.editor.needsReviewHint}>
