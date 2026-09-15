@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ThreeDots } from 'react-loader-spinner';
 import { Role, type FolderNode, type SourceFileSummary } from '@metafrasis/shared';
 import { el } from '../i18n/el.js';
 import { api, ApiRequestError } from '../lib/api.js';
@@ -24,7 +25,9 @@ export function SourcesTab({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [creatingFolder, setCreatingFolder] = useState(false);
-  const [busy, setBusy] = useState(false);
+  // 'add' = ανέβασμα νέου αρχείου, 'update:<fileId>' = Ενημέρωση συγκεκριμένου αρχείου.
+  // Έτσι μόνο το κουμπί/στοιχείο που πραγματικά κάνει κάτι κλειδώνει — όχι όλη η καρτέλα.
+  const [inFlight, setInFlight] = useState<string | null>(null);
   // null = «Χωρίς φάκελο» (ρίζα). Επιλέγει ποιος φάκελος φιλτράρει τη λίστα αρχείων
   // και μέσα σε ποιον ανεβαίνει το επόμενο «Προσθήκη Αρχείου».
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
@@ -48,7 +51,7 @@ export function SourcesTab({
   async function handleAdd(file: File) {
     setError(null);
     setNotice(null);
-    setBusy(true);
+    setInFlight('add');
     try {
       await api.upload(
         `/projects/${project.id}/files`,
@@ -60,14 +63,14 @@ export function SourcesTab({
     } catch (err) {
       setError(err instanceof ApiRequestError ? err.message : el.sources.uploadError);
     } finally {
-      setBusy(false);
+      setInFlight(null);
     }
   }
 
   async function handleUpdate(fileId: string, file: File) {
     setError(null);
     setNotice(null);
-    setBusy(true);
+    setInFlight(`update:${fileId}`);
     try {
       const result = await api.upload<{ added: number; changed: number; removed: number }>(
         `/projects/${project.id}/files/${fileId}/revisions`,
@@ -79,7 +82,7 @@ export function SourcesTab({
     } catch (err) {
       setError(err instanceof ApiRequestError ? err.message : el.sources.uploadError);
     } finally {
-      setBusy(false);
+      setInFlight(null);
     }
   }
 
@@ -104,20 +107,28 @@ export function SourcesTab({
 
   return (
     <div>
-      {/* Τα κουμπιά «στα δεξιά», όπως ζητήθηκε. */}
+      {/* Τα κουμπιά «στα δεξιά», όπως ζητήθηκε. Μόνο η ενέργεια που τρέχει πραγματικά
+          κλειδώνει το δικό της στοιχείο — η υπόλοιπη καρτέλα μένει διαδραστική. */}
       <div className="spread" style={{ marginBottom: '1rem' }}>
         <div>
-          {busy && <span className="badge">{el.sources.uploading}</span>}
+          {inFlight === 'add' && (
+            <span className="row" style={{ gap: '0.4rem' }}>
+              <ThreeDots color="#32cd32" height={20} width={20} />
+              <span className="badge">{el.sources.uploading}</span>
+            </span>
+          )}
           {notice && <span className="badge">{notice}</span>}
           {error && <span className="field-error">{error}</span>}
         </div>
         {isManager && (
           <div className="row">
-            <button onClick={() => setCreatingFolder(true)} disabled={busy}>
-              {el.sources.newFolder}
-            </button>
-            <button className="primary" onClick={() => addInput.current?.click()} disabled={busy}>
-              {busy && !updatingFileId ? el.app.loading : el.sources.addFile}
+            <button onClick={() => setCreatingFolder(true)}>{el.sources.newFolder}</button>
+            <button
+              className="primary"
+              onClick={() => addInput.current?.click()}
+              disabled={inFlight === 'add'}
+            >
+              {inFlight === 'add' ? el.app.loading : el.sources.addFile}
             </button>
           </div>
         )}
@@ -183,7 +194,7 @@ export function SourcesTab({
           <div style={{ flex: 1, minWidth: 0 }}>
             <DropZone
               accept="application/json,.json"
-              disabled={!isManager || busy}
+              disabled={!isManager || inFlight === 'add'}
               onFiles={(files) => {
                 // Ίδια σημασιολογία με το κουμπί «Προσθήκη Αρχείου»: ένα αρχείο τη φορά.
                 const file = files[0];
@@ -230,15 +241,18 @@ export function SourcesTab({
                           <td className="hide-narrow muted">{formatDate(file.updatedAt)}</td>
                           <td>
                             {isManager && (
-                              <div className="row" style={{ justifyContent: 'flex-end' }}>
+                              <div className="row" style={{ justifyContent: 'flex-end', alignItems: 'center' }}>
+                                {inFlight === `update:${file.id}` && (
+                                  <ThreeDots color="#32cd32" height={18} width={18} />
+                                )}
                                 <button
                                   onClick={() => {
                                     setUpdatingFileId(file.id);
                                     updateInput.current?.click();
                                   }}
-                                  disabled={busy}
+                                  disabled={inFlight === `update:${file.id}`}
                                 >
-                                  {busy && updatingFileId === file.id
+                                  {inFlight === `update:${file.id}`
                                     ? el.app.loading
                                     : el.sources.update}
                                 </button>
@@ -246,6 +260,7 @@ export function SourcesTab({
                                   className="ghost danger"
                                   onClick={() => void handleDelete(file)}
                                   title={el.sources.deleteFile}
+                                  disabled={inFlight === `update:${file.id}`}
                                 >
                                   ✕
                                 </button>
