@@ -28,6 +28,10 @@ export function SourcesTab({
   // 'add' = ανέβασμα νέου αρχείου, 'update:<fileId>' = Ενημέρωση συγκεκριμένου αρχείου.
   // Έτσι μόνο το κουμπί/στοιχείο που πραγματικά κάνει κάτι κλειδώνει — όχι όλη η καρτέλα.
   const [inFlight, setInFlight] = useState<string | null>(null);
+  // Ποσοστό μεταφοράς bytes για το «Προσθήκη Αρχείου» (0-100), null όταν δεν τρέχει.
+  // Στο 100% τα bytes έχουν σταλεί αλλά ο server ακόμα επεξεργάζεται το αρχείο — δεν
+  // υπάρχει τρόπος να μετρηθεί αυτό το κομμάτι, οπότε εκεί επιστρέφουμε στο ThreeDots.
+  const [uploadPercent, setUploadPercent] = useState<number | null>(null);
   // null = «Χωρίς φάκελο» (ρίζα). Επιλέγει ποιος φάκελος φιλτράρει τη λίστα αρχείων
   // και μέσα σε ποιον ανεβαίνει το επόμενο «Προσθήκη Αρχείου».
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
@@ -52,11 +56,13 @@ export function SourcesTab({
     setError(null);
     setNotice(null);
     setInFlight('add');
+    setUploadPercent(0);
     try {
-      await api.upload(
+      await api.uploadWithProgress(
         `/projects/${project.id}/files`,
         file,
         selectedFolderId ? { folderId: selectedFolderId } : {},
+        setUploadPercent,
       );
       reload();
       onChanged();
@@ -64,6 +70,7 @@ export function SourcesTab({
       setError(err instanceof ApiRequestError ? err.message : el.sources.uploadError);
     } finally {
       setInFlight(null);
+      setUploadPercent(null);
     }
   }
 
@@ -112,8 +119,17 @@ export function SourcesTab({
       <div className="spread" style={{ marginBottom: '1rem' }}>
         <div>
           {inFlight === 'add' && (
-            <span className="row" style={{ gap: '0.4rem' }}>
-              <ThreeDots color="#32cd32" height={20} width={20} />
+            <span className="row" style={{ gap: '0.4rem', alignItems: 'center' }}>
+              {uploadPercent !== null && uploadPercent < 100 ? (
+                <>
+                  <div className="progress-track" style={{ width: 80 }}>
+                    <div className="progress-fill" style={{ width: `${uploadPercent}%` }} />
+                  </div>
+                  <span className="badge">{uploadPercent}%</span>
+                </>
+              ) : (
+                <ThreeDots color="#32cd32" height={20} width={20} />
+              )}
               <span className="badge">{el.sources.uploading}</span>
             </span>
           )}

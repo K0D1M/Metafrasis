@@ -13,13 +13,11 @@ export class ApiRequestError extends Error {
   }
 }
 
-async function handle<T>(res: Response): Promise<T> {
-  if (res.status === 204) return undefined as T;
-
-  const text = await res.text();
+/** Ίδια λογική ανάλυσης απάντησης/σφάλματος, ανεξάρτητα από το αν προήλθε από fetch ή XHR. */
+function parsePayload<T>(status: number, text: string): T {
   const payload: unknown = text ? JSON.parse(text) : null;
 
-  if (!res.ok) {
+  if (status < 200 || status >= 300) {
     const error = payload as ApiError | null;
     // Το zod δίνει πίνακα μηνυμάτων ανά πεδίο· κρατάμε το πρώτο για το UI.
     const fields = error?.fields
@@ -30,10 +28,15 @@ async function handle<T>(res: Response): Promise<T> {
           ]),
         )
       : undefined;
-    throw new ApiRequestError(res.status, error?.error ?? 'Σφάλμα δικτύου', fields);
+    throw new ApiRequestError(status, error?.error ?? 'Σφάλμα δικτύου', fields);
   }
 
   return payload as T;
+}
+
+async function handle<T>(res: Response): Promise<T> {
+  if (res.status === 204) return undefined as T;
+  return parsePayload<T>(res.status, await res.text());
 }
 
 export const api = {
@@ -83,5 +86,45 @@ export const api = {
       credentials: 'include',
       body: form,
     }).then(handle<T>);
+  },
+
+  /**
+   * Ίδιο με το upload(), αλλά αναφέρει την πρόοδο ανεβάσματος (0-100) μέσω onProgress.
+   * Το fetch δεν εκθέτει καθόλου upload progress — μόνο το XMLHttpRequest το κάνει,
+   * γι' αυτό αυτή η μέθοδος δεν χτίζεται πάνω στο handle()/fetch των υπολοίπων.
+   */
+  uploadWithProgress<T>(
+    path: string,
+    file: File,
+    extra: Record<string, string>,
+    onProgress: (percent: number) => void,
+  ): Promise<T> {
+    const form = new FormData();
+    form.append('file', file);
+    for (const [key, value] of Object.entries(extra)) form.append(key, value);
+
+    return new Promise<T>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `/api${path}`);
+      xhr.withCredentials = true;
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          onProgress(Math.round((event.loaded / event.total) * 100));
+        }
+      };
+      xhr.onload = () => {
+        try {
+          if (xhr.status === 204) {
+            resolve(undefined as T);
+            return;
+          }
+          resolve(parsePayload<T>(xhr.status, xhr.responseText));
+        } catch (err) {
+          reject(err);
+        }
+      };
+      xhr.onerror = () => reject(new ApiRequestError(0, 'Σφάλμα δικτύου'));
+      xhr.send(form);
+    });
   },
 };
