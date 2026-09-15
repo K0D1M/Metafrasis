@@ -8,7 +8,7 @@ import {
 import { prisma } from '../db.js';
 import { requireProjectRole } from '../auth.js';
 import { parseJsonUpload, planIngest } from '../services/ingest.js';
-import { startJob, updateJob, finishJob, getJob } from '../services/uploadJobs.js';
+import { startJob, updateJob, finishJob, getJobsForProject } from '../services/uploadJobs.js';
 import { progressByFile } from '../services/progress.js';
 import { flatten, unflatten, type JsonValue } from '../services/jsonFlatten.js';
 import { logActivity } from '../services/activity.js';
@@ -230,8 +230,9 @@ filesRouter.post(
     }
 
     const projectId = req.params.projectId!;
+    const jobKey = `add:${projectId}`;
     const emit = ndjsonEmitter(res);
-    startJob(projectId, req.file.originalname);
+    startJob(jobKey, { projectId, fileName: req.file.originalname });
     try {
       emit('parsing');
       const content = parseJsonUpload(req.file.buffer);
@@ -244,7 +245,7 @@ filesRouter.post(
         userId: req.userId!,
         onProgress: (stage) => {
           emit(stage);
-          updateJob(projectId, stage);
+          updateJob(jobKey, stage);
         },
       });
       await logActivity({
@@ -260,26 +261,21 @@ filesRouter.post(
         req.file.originalname,
         result.fileId,
       );
-      updateJob(projectId, 'done');
+      updateJob(jobKey, 'done');
       emit('done', result);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Αποτυχία εισαγωγής';
-      updateJob(projectId, 'error', message);
+      updateJob(jobKey, 'error', message);
       emit('error', { error: message });
     } finally {
-      finishJob(projectId);
+      finishJob(jobKey);
       res.end();
     }
   },
 );
 
-filesRouter.get('/active-upload', requireProjectRole(), (req, res) => {
-  const job = getJob(req.params.projectId!);
-  if (!job) {
-    res.status(204).end();
-    return;
-  }
-  res.json(job);
+filesRouter.get('/active-uploads', requireProjectRole(), (req, res) => {
+  res.json(getJobsForProject(req.params.projectId!));
 });
 
 filesRouter.post(
@@ -300,36 +296,46 @@ filesRouter.post(
       return;
     }
 
+    const projectId = req.params.projectId!;
+    const jobKey = `update:${file.id}`;
     const emit = ndjsonEmitter(res);
+    startJob(jobKey, { projectId, fileId: file.id, fileName: file.name });
     try {
       emit('parsing');
       const content = parseJsonUpload(req.file.buffer);
       const result = await ingestUpload({
-        projectId: req.params.projectId!,
+        projectId,
         fileId: file.id,
         folderId: file.folderId,
         name: file.name,
         content,
         userId: req.userId!,
-        onProgress: (stage) => emit(stage),
+        onProgress: (stage) => {
+          emit(stage);
+          updateJob(jobKey, stage);
+        },
       });
       await logActivity({
-        projectId: req.params.projectId!,
+        projectId,
         userId: req.userId!,
         action: ActivityAction.FILE_UPDATE,
         target: file.name,
       });
       await notifyOtherMembers(
-        req.params.projectId!,
+        projectId,
         req.userId!,
         NotificationType.FILE_UPDATE,
         file.name,
         file.id,
       );
+      updateJob(jobKey, 'done');
       emit('done', result);
     } catch (error) {
-      emit('error', { error: error instanceof Error ? error.message : 'Αποτυχία ενημέρωσης' });
+      const message = error instanceof Error ? error.message : 'Αποτυχία ενημέρωσης';
+      updateJob(jobKey, 'error', message);
+      emit('error', { error: message });
     } finally {
+      finishJob(jobKey);
       res.end();
     }
   },

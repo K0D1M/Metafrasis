@@ -6,6 +6,7 @@ import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.js';
 import { AccountMenu, ProgressBar, ThemeToggle } from '../components/common.js';
 import { NotificationBell } from '../components/NotificationBell.js';
+import { TabIcon } from '../components/TabIcon.js';
 import { SourcesTab } from '../tabs/Sources.js';
 import { MembersTab } from '../tabs/Members.js';
 import { TranslationsTab } from '../tabs/Translations.js';
@@ -113,6 +114,7 @@ export function ProjectWindow() {
             className={`tab${tab === t.key ? ' active' : ''}`}
             onClick={() => setTab(t.key)}
           >
+            <TabIcon tabKey={t.key} />
             {t.label}
           </button>
         ))}

@@ -301,6 +301,9 @@ tbody tr:last-child td { border-bottom: none; }
   overflow-x: auto;
 }
 .tab {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
   padding: 0.6rem 0.9rem;
   border: none;
   border-bottom: 2px solid transparent;

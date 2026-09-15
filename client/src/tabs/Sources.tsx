@@ -22,6 +22,34 @@ const STAGE_PERCENT: Record<string, number> = {
   saving: 75,
 };
 
+/** Μπάρα προόδου με το ποσοστό γραμμένο μέσα της — κοινή για add και Ενημέρωση. */
+function StagePercentBar({ stage }: { stage: string | null }) {
+  const percent = STAGE_PERCENT[stage ?? 'parsing'];
+  return (
+    <div
+      className="progress-track"
+      style={{ width: 90, height: 16, position: 'relative', display: 'flex', alignItems: 'center' }}
+    >
+      <div className="progress-fill" style={{ width: `${percent}%`, height: '100%' }} />
+      <span
+        style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '0.7em',
+          fontWeight: 600,
+          color: 'var(--text)',
+          lineHeight: 1,
+        }}
+      >
+        {percent}%
+      </span>
+    </div>
+  );
+}
+
 export function SourcesTab({
   project,
   onChanged,
@@ -34,12 +62,27 @@ export function SourcesTab({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [creatingFolder, setCreatingFolder] = useState(false);
-  // 'add' = ανέβασμα νέου αρχείου, 'update:<fileId>' = Ενημέρωση συγκεκριμένου αρχείου.
-  // Έτσι μόνο το κουμπί/στοιχείο που πραγματικά κάνει κάτι κλειδώνει — όχι όλη η καρτέλα.
-  const [inFlight, setInFlight] = useState<string | null>(null);
-  // Στάδιο επεξεργασίας για το «Προσθήκη Αρχείου», αναφερόμενο από τον server μέσω
-  // ροής NDJSON — καλύπτει ολόκληρη τη διαδικασία, όχι μόνο τη μεταφορά bytes.
-  const [uploadStage, setUploadStage] = useState<string | null>(null);
+  // Σύνολο κλειδιών ενεργειών που τρέχουν αυτή τη στιγμή: 'add' = ανέβασμα νέου αρχείου,
+  // 'update:<fileId>' = Ενημέρωση συγκεκριμένου αρχείου. Σύνολο (όχι μονή τιμή) επειδή
+  // μετά από ανανέωση σελίδας μπορεί να αποκατασταθεί παραπάνω από ένα ενεργό job
+  // ταυτόχρονα (π.χ. ένα add ΚΑΙ μια Ενημέρωση από άλλον διαχειριστή). Μόνο το
+  // κουμπί/στοιχείο που πραγματικά κάνει κάτι κλειδώνει — όχι όλη η καρτέλα.
+  const [inFlight, setInFlight] = useState<Set<string>>(() => new Set());
+  // Στάδιο επεξεργασίας για το «Προσθήκη Αρχείου» (ξεχωριστό από τα updates παρακάτω).
+  const [addStage, setAddStage] = useState<string | null>(null);
+  // Στάδιο επεξεργασίας ανά αρχείο για την Ενημέρωση — fileId -> στάδιο.
+  const [updateStages, setUpdateStages] = useState<Record<string, string>>({});
+
+  function markInFlight(key: string) {
+    setInFlight((current) => new Set(current).add(key));
+  }
+  function clearInFlight(key: string) {
+    setInFlight((current) => {
+      const next = new Set(current);
+      next.delete(key);
+      return next;
+    });
+  }
   // null = «Χωρίς φάκελο» (ρίζα). Επιλέγει ποιος φάκελος φιλτράρει τη λίστα αρχείων
   // και μέσα σε ποιον ανεβαίνει το επόμενο «Προσθήκη Αρχείου».
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
@@ -60,38 +103,44 @@ export function SourcesTab({
 
   useEffect(reload, [project.id]);
 
-  // Αν η σελίδα ανανεώθηκε ενώ έτρεχε ένα ανέβασμα, ο server το θυμάται ακόμα (in-memory
-  // tracker) — ρωτάμε μία φορά στο mount και, αν κάτι τρέχει, ξαναδείχνουμε τη μπάρα και
-  // κάνουμε polling μέχρι να τελειώσει, αντί να χάνεται η ένδειξη προόδου σε κάθε reload.
+  // Αν η σελίδα ανανεώθηκε ενώ έτρεχε ένα ή περισσότερα ανεβάσματα/ενημερώσεις, ο server
+  // τα θυμάται ακόμα (in-memory tracker) — ρωτάμε μία φορά στο mount και, αν κάτι τρέχει,
+  // ξαναδείχνουμε τη μπάρα και κάνουμε polling μέχρι να τελειώσουν όλα, αντί να χάνεται η
+  // ένδειξη προόδου σε κάθε reload.
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     async function poll() {
       try {
-        const job = await api.get<UploadJob | null>(`/projects/${project.id}/files/active-upload`);
+        const jobs = await api.get<UploadJob[]>(`/projects/${project.id}/files/active-uploads`);
         if (cancelled) return;
-        if (!job) {
-          setInFlight(null);
-          setUploadStage(null);
-          return;
+
+        let stillRunning = false;
+        for (const job of jobs) {
+          const key = job.fileId ? `update:${job.fileId}` : 'add';
+          if (job.stage === 'error') {
+            setError(job.error ?? el.sources.uploadError);
+            clearInFlight(key);
+            if (!job.fileId) setAddStage(null);
+            else setUpdateStages((s) => { const next = { ...s }; delete next[job.fileId!]; return next; });
+            continue;
+          }
+          if (job.stage === 'done') {
+            clearInFlight(key);
+            if (!job.fileId) setAddStage(null);
+            else setUpdateStages((s) => { const next = { ...s }; delete next[job.fileId!]; return next; });
+            reload();
+            onChanged();
+            continue;
+          }
+          stillRunning = true;
+          markInFlight(key);
+          if (!job.fileId) setAddStage(job.stage);
+          else setUpdateStages((s) => ({ ...s, [job.fileId!]: job.stage }));
         }
-        setInFlight('add');
-        if (job.stage === 'error') {
-          setError(job.error ?? el.sources.uploadError);
-          setUploadStage(null);
-          setInFlight(null);
-          return;
-        }
-        if (job.stage === 'done') {
-          setUploadStage(null);
-          setInFlight(null);
-          reload();
-          onChanged();
-          return;
-        }
-        setUploadStage(job.stage);
-        timer = setTimeout(poll, 1000);
+
+        if (stillRunning) timer = setTimeout(poll, 1000);
       } catch {
         // Δίκτυο/σφάλμα ανάγνωσης: δεν έχει νόημα να μπλοκάρουμε την καρτέλα εξαιτίας του.
       }
@@ -108,33 +157,37 @@ export function SourcesTab({
   async function handleAdd(file: File) {
     setError(null);
     setNotice(null);
-    setInFlight('add');
-    setUploadStage('parsing');
+    markInFlight('add');
+    setAddStage('parsing');
     try {
       await api.uploadStreamed(
         `/projects/${project.id}/files`,
         file,
         selectedFolderId ? { folderId: selectedFolderId } : {},
-        setUploadStage,
+        setAddStage,
       );
       reload();
       onChanged();
     } catch (err) {
       setError(err instanceof ApiRequestError ? err.message : el.sources.uploadError);
     } finally {
-      setInFlight(null);
-      setUploadStage(null);
+      clearInFlight('add');
+      setAddStage(null);
     }
   }
 
   async function handleUpdate(fileId: string, file: File) {
     setError(null);
     setNotice(null);
-    setInFlight(`update:${fileId}`);
+    const key = `update:${fileId}`;
+    markInFlight(key);
+    setUpdateStages((s) => ({ ...s, [fileId]: 'parsing' }));
     try {
-      const result = await api.upload<{ added: number; changed: number; removed: number }>(
+      const result = await api.uploadStreamed<{ added: number; changed: number; removed: number }>(
         `/projects/${project.id}/files/${fileId}/revisions`,
         file,
+        {},
+        (stage) => setUpdateStages((s) => ({ ...s, [fileId]: stage })),
       );
       setNotice(el.sources.updated(result.added, result.changed, result.removed));
       reload();
@@ -142,7 +195,12 @@ export function SourcesTab({
     } catch (err) {
       setError(err instanceof ApiRequestError ? err.message : el.sources.uploadError);
     } finally {
-      setInFlight(null);
+      clearInFlight(key);
+      setUpdateStages((s) => {
+        const next = { ...s };
+        delete next[fileId];
+        return next;
+      });
     }
   }
 
@@ -171,38 +229,9 @@ export function SourcesTab({
           κλειδώνει το δικό της στοιχείο — η υπόλοιπη καρτέλα μένει διαδραστική. */}
       <div className="spread" style={{ marginBottom: '1rem' }}>
         <div>
-          {inFlight === 'add' && (
+          {inFlight.has('add') && (
             <span className="row" style={{ gap: '0.4rem', alignItems: 'center' }}>
-              <div
-                className="progress-track"
-                style={{
-                  width: 90,
-                  height: 16,
-                  position: 'relative',
-                  display: 'flex',
-                  alignItems: 'center',
-                }}
-              >
-                <div
-                  className="progress-fill"
-                  style={{ width: `${STAGE_PERCENT[uploadStage ?? 'parsing']}%`, height: '100%' }}
-                />
-                <span
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '0.7em',
-                    fontWeight: 600,
-                    color: 'var(--text)',
-                    lineHeight: 1,
-                  }}
-                >
-                  {STAGE_PERCENT[uploadStage ?? 'parsing']}%
-                </span>
-              </div>
+              <StagePercentBar stage={addStage} />
               <ThreeDots color="#32cd32" height={20} width={20} />
               <span className="badge success">{el.sources.processing}</span>
             </span>
@@ -216,9 +245,9 @@ export function SourcesTab({
             <button
               className="primary"
               onClick={() => addInput.current?.click()}
-              disabled={inFlight === 'add'}
+              disabled={inFlight.has('add')}
             >
-              {inFlight === 'add' ? el.app.loading : el.sources.addFile}
+              {inFlight.has('add') ? el.app.loading : el.sources.addFile}
             </button>
           </div>
         )}
@@ -284,7 +313,7 @@ export function SourcesTab({
           <div style={{ flex: 1, minWidth: 0 }}>
             <DropZone
               accept="application/json,.json"
-              disabled={!isManager || inFlight === 'add'}
+              disabled={!isManager || inFlight.has('add')}
               onFiles={(files) => {
                 // Ίδια σημασιολογία με το κουμπί «Προσθήκη Αρχείου»: ένα αρχείο τη φορά.
                 const file = files[0];
@@ -332,17 +361,21 @@ export function SourcesTab({
                           <td>
                             {isManager && (
                               <div className="row" style={{ justifyContent: 'flex-end', alignItems: 'center' }}>
-                                {inFlight === `update:${file.id}` && (
-                                  <ThreeDots color="#32cd32" height={18} width={18} />
+                                {inFlight.has(`update:${file.id}`) && (
+                                  <>
+                                    <StagePercentBar stage={updateStages[file.id] ?? null} />
+                                    <ThreeDots color="#32cd32" height={18} width={18} />
+                                    <span className="badge success">{el.sources.processing}</span>
+                                  </>
                                 )}
                                 <button
                                   onClick={() => {
                                     setUpdatingFileId(file.id);
                                     updateInput.current?.click();
                                   }}
-                                  disabled={inFlight === `update:${file.id}`}
+                                  disabled={inFlight.has(`update:${file.id}`)}
                                 >
-                                  {inFlight === `update:${file.id}`
+                                  {inFlight.has(`update:${file.id}`)
                                     ? el.app.loading
                                     : el.sources.update}
                                 </button>
@@ -350,7 +383,7 @@ export function SourcesTab({
                                   className="ghost danger"
                                   onClick={() => void handleDelete(file)}
                                   title={el.sources.deleteFile}
-                                  disabled={inFlight === `update:${file.id}`}
+                                  disabled={inFlight.has(`update:${file.id}`)}
                                 >
                                   ✕
                                 </button>

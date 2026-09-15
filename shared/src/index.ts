@@ -128,9 +128,12 @@ export interface SourceFileSummary {
 export type UploadJobStage = 'parsing' | 'diffing' | 'saving' | 'done' | 'error';
 
 export interface UploadJob {
+  projectId: string;
   fileName: string;
   stage: UploadJobStage;
   error?: string;
+  /** Παρόν μόνο για Ενημέρωση υπάρχοντος αρχείου· απόν για νέο ανέβασμα (add). */
+  fileId?: string;
 }
 
 /* ── Κείμενα και μεταφράσεις ───────────────────────────────────────────────── */
