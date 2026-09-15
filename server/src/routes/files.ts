@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import multer from 'multer';
 import {
   createFolderSchema,
@@ -102,6 +102,8 @@ filesRouter.get('/', requireProjectRole(), async (req, res) => {
 
 /* ── Προσθήκη Αρχείου και Ενημέρωση ────────────────────────────────────────── */
 
+export type IngestStage = 'parsing' | 'diffing' | 'saving';
+
 /** Κοινή διαδρομή για πρώτο ανέβασμα και για Ενημέρωση υπάρχοντος αρχείου. */
 async function ingestUpload(params: {
   projectId: string;
@@ -110,8 +112,9 @@ async function ingestUpload(params: {
   name: string;
   content: JsonValue;
   userId: string;
+  onProgress?: (stage: IngestStage) => void;
 }): Promise<{ fileId: string; revision: number; added: number; changed: number; removed: number }> {
-  const { projectId, folderId, name, content, userId } = params;
+  const { projectId, folderId, name, content, userId, onProgress } = params;
 
   const file =
     params.fileId !== null
@@ -125,6 +128,7 @@ async function ingestUpload(params: {
     select: { key: true, sourceText: true, removed: true },
   });
 
+  onProgress?.('diffing');
   const plan = planIngest(
     content,
     existing.map((s) => ({ key: s.key, sourceText: s.sourceText })),
@@ -137,6 +141,7 @@ async function ingestUpload(params: {
   });
   const revision = (lastVersion?.revision ?? 0) + 1;
 
+  onProgress?.('saving');
   await prisma.$transaction([
     prisma.fileVersion.create({
       data: { fileId: file.id, revision, uploadedBy: userId, rawJson: JSON.stringify(content) },
@@ -202,6 +207,17 @@ async function notifyOtherMembers(
   });
 }
 
+/**
+ * Ροή NDJSON: μία γραμμή JSON ανά στάδιο επεξεργασίας, ώστε ο client να δείχνει
+ * πραγματική πρόοδο αντί για ένα ενιαίο response στο τέλος. Μόλις γραφτεί η κεφαλίδα
+ * 200, ο κωδικός κατάστασης δεν αλλάζει πια — τα σφάλματα μεταδίδονται ως τελευταία
+ * γραμμή με stage "error" αντί για HTTP status.
+ */
+function ndjsonEmitter(res: Response): (stage: string, extra?: object) => void {
+  res.writeHead(200, { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-cache' });
+  return (stage, extra) => res.write(`${JSON.stringify({ stage, ...extra })}\n`);
+}
+
 filesRouter.post(
   '/',
   requireProjectRole({ managerOnly: true }),
@@ -212,7 +228,9 @@ filesRouter.post(
       return;
     }
 
+    const emit = ndjsonEmitter(res);
     try {
+      emit('parsing');
       const content = parseJsonUpload(req.file.buffer);
       const result = await ingestUpload({
         projectId: req.params.projectId!,
@@ -221,6 +239,7 @@ filesRouter.post(
         name: req.file.originalname,
         content,
         userId: req.userId!,
+        onProgress: (stage) => emit(stage),
       });
       await logActivity({
         projectId: req.params.projectId!,
@@ -235,9 +254,11 @@ filesRouter.post(
         req.file.originalname,
         result.fileId,
       );
-      res.status(201).json(result);
+      emit('done', result);
     } catch (error) {
-      res.status(400).json({ error: error instanceof Error ? error.message : 'Αποτυχία εισαγωγής' });
+      emit('error', { error: error instanceof Error ? error.message : 'Αποτυχία εισαγωγής' });
+    } finally {
+      res.end();
     }
   },
 );
@@ -260,7 +281,9 @@ filesRouter.post(
       return;
     }
 
+    const emit = ndjsonEmitter(res);
     try {
+      emit('parsing');
       const content = parseJsonUpload(req.file.buffer);
       const result = await ingestUpload({
         projectId: req.params.projectId!,
@@ -269,6 +292,7 @@ filesRouter.post(
         name: file.name,
         content,
         userId: req.userId!,
+        onProgress: (stage) => emit(stage),
       });
       await logActivity({
         projectId: req.params.projectId!,
@@ -283,9 +307,11 @@ filesRouter.post(
         file.name,
         file.id,
       );
-      res.json(result);
+      emit('done', result);
     } catch (error) {
-      res.status(400).json({ error: error instanceof Error ? error.message : 'Αποτυχία ενημέρωσης' });
+      emit('error', { error: error instanceof Error ? error.message : 'Αποτυχία ενημέρωσης' });
+    } finally {
+      res.end();
     }
   },
 );

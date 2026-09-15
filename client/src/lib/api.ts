@@ -127,4 +127,64 @@ export const api = {
       xhr.send(form);
     });
   },
+
+  /**
+   * Ανέβασμα με ροή NDJSON απάντησης: ο server στέλνει μία γραμμή JSON ανά στάδιο
+   * επεξεργασίας (π.χ. parsing/diffing/saving) αντί για ένα ενιαίο response στο τέλος.
+   * Το fetch (όχι XHR) είναι απαραίτητο εδώ — μόνο αυτό εκθέτει το response body ως
+   * ReadableStream για ανάγνωση σε κομμάτια πριν ολοκληρωθεί το αίτημα. Σε αντάλλαγμα
+   * χάνεται η byte-level πρόοδος ανεβάσματος (μόνο το XHR την εκθέτει) — για μικρά/
+   * μεσαία JSON αρχεία η φάση μεταφοράς bytes είναι ούτως ή άλλως σχεδόν ακαριαία σε
+   * σχέση με την επεξεργασία στον server, οπότε τα στάδια εδώ είναι η ουσιαστική πρόοδος.
+   */
+  async uploadStreamed<T>(
+    path: string,
+    file: File,
+    extra: Record<string, string>,
+    onStage: (stage: string) => void,
+  ): Promise<T> {
+    const form = new FormData();
+    form.append('file', file);
+    for (const [key, value] of Object.entries(extra)) form.append(key, value);
+
+    const res = await fetch(`/api${path}`, {
+      method: 'POST',
+      credentials: 'include',
+      body: form,
+    });
+
+    if (!res.body) {
+      // Πολύ παλιό browser χωρίς ReadableStream body — πέφτουμε πίσω σε ένα ενιαίο διάβασμα.
+      return parsePayload<T>(res.status, await res.text());
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      let newlineIndex: number;
+      while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+        const line = buffer.slice(0, newlineIndex);
+        buffer = buffer.slice(newlineIndex + 1);
+        if (!line) continue;
+
+        const parsed = JSON.parse(line) as { stage: string; error?: string } & Record<string, unknown>;
+        if (parsed.stage === 'error') {
+          throw new ApiRequestError(res.status, parsed.error ?? 'Σφάλμα δικτύου');
+        }
+        if (parsed.stage === 'done') {
+          const { stage: _stage, ...rest } = parsed;
+          return rest as T;
+        }
+        onStage(parsed.stage);
+      }
+    }
+
+    throw new ApiRequestError(res.status, 'Η ροή τερμάτισε χωρίς αποτέλεσμα');
+  },
 };

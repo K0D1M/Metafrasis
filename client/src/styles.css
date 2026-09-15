@@ -14,6 +14,7 @@
   --accent-hover: #2559c9;
   --accent-contrast: #ffffff;
   --success: #1f9d55;
+  --success-bg: #e9f9ef;
   --warning: #b7791f;
   --warning-bg: #fdf6e3;
   --danger: #d64545;
@@ -38,6 +39,7 @@
     --accent-hover: #87aeff;
     --accent-contrast: #10131a;
     --success: #4ade80;
+    --success-bg: #16281e;
     --warning: #e0b44a;
     --warning-bg: #2a2418;
     --danger: #f87171;
@@ -60,6 +62,7 @@
   --accent-hover: #87aeff;
   --accent-contrast: #10131a;
   --success: #4ade80;
+  --success-bg: #16281e;
   --warning: #e0b44a;
   --warning-bg: #2a2418;
   --danger: #f87171;
@@ -248,6 +251,7 @@ tbody tr:last-child td { border-bottom: none; }
   white-space: nowrap;
 }
 .badge.warning { background: var(--warning-bg); color: var(--warning); }
+.badge.success { background: var(--success-bg); color: var(--success); }
 
 /* ── Κουμπί εμφανίζεται μόνο στο hover του γονικού — π.χ. αντιγραφή πρωτότυπου ──── */
 

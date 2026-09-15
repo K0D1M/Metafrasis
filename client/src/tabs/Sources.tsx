@@ -13,6 +13,15 @@ interface SourcesResponse {
   files: SourceFileSummary[];
 }
 
+// Αντιστοίχιση σταδίων επεξεργασίας (όπως αναφέρονται από τον server μέσω NDJSON) σε
+// ποσοστό για τη μπάρα προόδου — τέσσερα διακριτά βήματα, όχι ομαλή προσομοίωση, αφού
+// αυτό είναι ό,τι πραγματικά γνωρίζουμε για την πρόοδο του ανεβάσματος.
+const STAGE_PERCENT: Record<string, number> = {
+  parsing: 25,
+  diffing: 50,
+  saving: 75,
+};
+
 export function SourcesTab({
   project,
   onChanged,
@@ -28,10 +37,9 @@ export function SourcesTab({
   // 'add' = ανέβασμα νέου αρχείου, 'update:<fileId>' = Ενημέρωση συγκεκριμένου αρχείου.
   // Έτσι μόνο το κουμπί/στοιχείο που πραγματικά κάνει κάτι κλειδώνει — όχι όλη η καρτέλα.
   const [inFlight, setInFlight] = useState<string | null>(null);
-  // Ποσοστό μεταφοράς bytes για το «Προσθήκη Αρχείου» (0-100), null όταν δεν τρέχει.
-  // Στο 100% τα bytes έχουν σταλεί αλλά ο server ακόμα επεξεργάζεται το αρχείο — δεν
-  // υπάρχει τρόπος να μετρηθεί αυτό το κομμάτι, οπότε εκεί επιστρέφουμε στο ThreeDots.
-  const [uploadPercent, setUploadPercent] = useState<number | null>(null);
+  // Στάδιο επεξεργασίας για το «Προσθήκη Αρχείου», αναφερόμενο από τον server μέσω
+  // ροής NDJSON — καλύπτει ολόκληρη τη διαδικασία, όχι μόνο τη μεταφορά bytes.
+  const [uploadStage, setUploadStage] = useState<string | null>(null);
   // null = «Χωρίς φάκελο» (ρίζα). Επιλέγει ποιος φάκελος φιλτράρει τη λίστα αρχείων
   // και μέσα σε ποιον ανεβαίνει το επόμενο «Προσθήκη Αρχείου».
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
@@ -56,13 +64,13 @@ export function SourcesTab({
     setError(null);
     setNotice(null);
     setInFlight('add');
-    setUploadPercent(0);
+    setUploadStage('parsing');
     try {
-      await api.uploadWithProgress(
+      await api.uploadStreamed(
         `/projects/${project.id}/files`,
         file,
         selectedFolderId ? { folderId: selectedFolderId } : {},
-        setUploadPercent,
+        setUploadStage,
       );
       reload();
       onChanged();
@@ -70,7 +78,7 @@ export function SourcesTab({
       setError(err instanceof ApiRequestError ? err.message : el.sources.uploadError);
     } finally {
       setInFlight(null);
-      setUploadPercent(null);
+      setUploadStage(null);
     }
   }
 
@@ -120,17 +128,14 @@ export function SourcesTab({
         <div>
           {inFlight === 'add' && (
             <span className="row" style={{ gap: '0.4rem', alignItems: 'center' }}>
-              {uploadPercent !== null && uploadPercent < 100 ? (
-                <>
-                  <div className="progress-track" style={{ width: 80 }}>
-                    <div className="progress-fill" style={{ width: `${uploadPercent}%` }} />
-                  </div>
-                  <span className="badge">{uploadPercent}%</span>
-                </>
-              ) : (
-                <ThreeDots color="#32cd32" height={20} width={20} />
-              )}
-              <span className="badge">{el.sources.uploading}</span>
+              <div className="progress-track" style={{ width: 80 }}>
+                <div
+                  className="progress-fill"
+                  style={{ width: `${STAGE_PERCENT[uploadStage ?? 'parsing']}%` }}
+                />
+              </div>
+              <ThreeDots color="#32cd32" height={20} width={20} />
+              <span className="badge success">{el.sources.processing}</span>
             </span>
           )}
           {notice && <span className="badge">{notice}</span>}

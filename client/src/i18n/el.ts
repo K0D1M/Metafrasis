@@ -106,7 +106,7 @@ export const el = {
     revision: 'Revision',
     folderName: 'Όνομα φακέλου',
     uploadError: 'Το αρχείο δεν έγινε δεκτό',
-    uploading: 'Ανέβασμα αρχείου, περίμενε…',
+    processing: 'Γίνεται επεξεργασία, παρακαλώ περιμένετε…',
     rootFolder: 'Χωρίς φάκελο',
     noFolders: 'Δεν υπάρχουν ακόμα φάκελοι',
     deleteFile: 'Διαγραφή αρχείου',
