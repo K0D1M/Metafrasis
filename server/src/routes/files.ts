@@ -8,6 +8,7 @@ import {
 import { prisma } from '../db.js';
 import { requireProjectRole } from '../auth.js';
 import { parseJsonUpload, planIngest } from '../services/ingest.js';
+import { startJob, updateJob, finishJob, getJob } from '../services/uploadJobs.js';
 import { progressByFile } from '../services/progress.js';
 import { flatten, unflatten, type JsonValue } from '../services/jsonFlatten.js';
 import { logActivity } from '../services/activity.js';
@@ -228,40 +229,58 @@ filesRouter.post(
       return;
     }
 
+    const projectId = req.params.projectId!;
     const emit = ndjsonEmitter(res);
+    startJob(projectId, req.file.originalname);
     try {
       emit('parsing');
       const content = parseJsonUpload(req.file.buffer);
       const result = await ingestUpload({
-        projectId: req.params.projectId!,
+        projectId,
         fileId: null,
         folderId: (req.body?.folderId as string) || null,
         name: req.file.originalname,
         content,
         userId: req.userId!,
-        onProgress: (stage) => emit(stage),
+        onProgress: (stage) => {
+          emit(stage);
+          updateJob(projectId, stage);
+        },
       });
       await logActivity({
-        projectId: req.params.projectId!,
+        projectId,
         userId: req.userId!,
         action: ActivityAction.FILE_UPLOAD,
         target: req.file.originalname,
       });
       await notifyOtherMembers(
-        req.params.projectId!,
+        projectId,
         req.userId!,
         NotificationType.FILE_UPLOAD,
         req.file.originalname,
         result.fileId,
       );
+      updateJob(projectId, 'done');
       emit('done', result);
     } catch (error) {
-      emit('error', { error: error instanceof Error ? error.message : 'Αποτυχία εισαγωγής' });
+      const message = error instanceof Error ? error.message : 'Αποτυχία εισαγωγής';
+      updateJob(projectId, 'error', message);
+      emit('error', { error: message });
     } finally {
+      finishJob(projectId);
       res.end();
     }
   },
 );
+
+filesRouter.get('/active-upload', requireProjectRole(), (req, res) => {
+  const job = getJob(req.params.projectId!);
+  if (!job) {
+    res.status(204).end();
+    return;
+  }
+  res.json(job);
+});
 
 filesRouter.post(
   '/:fileId/revisions',

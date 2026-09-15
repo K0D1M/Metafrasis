@@ -124,6 +124,15 @@ export interface SourceFileSummary {
   updatedAt: string;
 }
 
+/** Στάδιο ενεργού ανεβάσματος αρχείου, όπως παρακολουθείται στη μνήμη του server. */
+export type UploadJobStage = 'parsing' | 'diffing' | 'saving' | 'done' | 'error';
+
+export interface UploadJob {
+  fileName: string;
+  stage: UploadJobStage;
+  error?: string;
+}
+
 /* ── Κείμενα και μεταφράσεις ───────────────────────────────────────────────── */
 
 export interface SourceStringView {

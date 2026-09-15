@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ThreeDots } from 'react-loader-spinner';
-import { Role, type FolderNode, type SourceFileSummary } from '@metafrasis/shared';
+import { Role, type FolderNode, type SourceFileSummary, type UploadJob } from '@metafrasis/shared';
 import { el } from '../i18n/el.js';
 import { api, ApiRequestError } from '../lib/api.js';
 import { EmptyState, Modal, ProgressBar, formatDate } from '../components/common.js';
@@ -59,6 +59,51 @@ export function SourcesTab({
   }
 
   useEffect(reload, [project.id]);
+
+  // Αν η σελίδα ανανεώθηκε ενώ έτρεχε ένα ανέβασμα, ο server το θυμάται ακόμα (in-memory
+  // tracker) — ρωτάμε μία φορά στο mount και, αν κάτι τρέχει, ξαναδείχνουμε τη μπάρα και
+  // κάνουμε polling μέχρι να τελειώσει, αντί να χάνεται η ένδειξη προόδου σε κάθε reload.
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    async function poll() {
+      try {
+        const job = await api.get<UploadJob | null>(`/projects/${project.id}/files/active-upload`);
+        if (cancelled) return;
+        if (!job) {
+          setInFlight(null);
+          setUploadStage(null);
+          return;
+        }
+        setInFlight('add');
+        if (job.stage === 'error') {
+          setError(job.error ?? el.sources.uploadError);
+          setUploadStage(null);
+          setInFlight(null);
+          return;
+        }
+        if (job.stage === 'done') {
+          setUploadStage(null);
+          setInFlight(null);
+          reload();
+          onChanged();
+          return;
+        }
+        setUploadStage(job.stage);
+        timer = setTimeout(poll, 1000);
+      } catch {
+        // Δίκτυο/σφάλμα ανάγνωσης: δεν έχει νόημα να μπλοκάρουμε την καρτέλα εξαιτίας του.
+      }
+    }
+
+    void poll();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project.id]);
 
   async function handleAdd(file: File) {
     setError(null);
@@ -128,11 +173,35 @@ export function SourcesTab({
         <div>
           {inFlight === 'add' && (
             <span className="row" style={{ gap: '0.4rem', alignItems: 'center' }}>
-              <div className="progress-track" style={{ width: 80 }}>
+              <div
+                className="progress-track"
+                style={{
+                  width: 90,
+                  height: 16,
+                  position: 'relative',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
                 <div
                   className="progress-fill"
-                  style={{ width: `${STAGE_PERCENT[uploadStage ?? 'parsing']}%` }}
+                  style={{ width: `${STAGE_PERCENT[uploadStage ?? 'parsing']}%`, height: '100%' }}
                 />
+                <span
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.7em',
+                    fontWeight: 600,
+                    color: 'var(--text)',
+                    lineHeight: 1,
+                  }}
+                >
+                  {STAGE_PERCENT[uploadStage ?? 'parsing']}%
+                </span>
               </div>
               <ThreeDots color="#32cd32" height={20} width={20} />
               <span className="badge success">{el.sources.processing}</span>
