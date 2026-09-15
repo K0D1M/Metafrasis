@@ -13,6 +13,22 @@ interface StringsResponse {
   strings: SourceStringView[];
 }
 
+// Εύρος χαρακτήρων αλφαβήτου ανά γλώσσα-στόχο, για να ξεχωρίζουμε ένα πραγματικά
+// μεταφρασμένο κείμενο από κενό/λευκό χώρο ή κείμενο σε λάθος γλώσσα που τυχαία
+// γράφτηκε στο πεδίο. Αρκεί ένας χαρακτήρας του αλφαβήτου-στόχου να υπάρχει.
+const LANGUAGE_SCRIPTS: Record<string, RegExp> = {
+  el: /[Ͱ-Ͽἀ-῿]/, // Ελληνικό αλφάβητο (και τονισμένα/πολυτονικά).
+  en: /[a-zA-Z]/,
+};
+
+/** Το κείμενο θεωρείται πραγματική μετάφραση μόνο αν περιέχει έστω έναν χαρακτήρα του
+ * αλφαβήτου της γλώσσας-στόχου — όχι απλώς αν το πεδίο δεν είναι κενό. */
+function isActuallyTranslated(text: string | null | undefined, language: string): boolean {
+  if (!text || !text.trim()) return false;
+  const script = LANGUAGE_SCRIPTS[language];
+  return script ? script.test(text) : text.trim().length > 0;
+}
+
 export function StringEditor() {
   const { projectId, fileId } = useParams<{ projectId: string; fileId: string }>();
   const [data, setData] = useState<StringsResponse | null>(null);
@@ -31,7 +47,9 @@ export function StringEditor() {
 
   const visible = useMemo(() => {
     if (!data) return [];
-    return onlyUntranslated ? data.strings.filter((s) => !s.translation) : data.strings;
+    return onlyUntranslated
+      ? data.strings.filter((s) => !isActuallyTranslated(s.translation, data.language))
+      : data.strings;
   }, [data, onlyUntranslated]);
 
   // Εικονικοποίηση: ένα αρχείο με 10.000 κείμενα δεν πρέπει να παγώνει τη σελίδα.
@@ -63,7 +81,7 @@ export function StringEditor() {
       </div>
     );
 
-  const translated = data.strings.filter((s) => s.translation).length;
+  const translated = data.strings.filter((s) => isActuallyTranslated(s.translation, data.language)).length;
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '1.5rem 1rem' }}>

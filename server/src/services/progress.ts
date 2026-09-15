@@ -1,5 +1,8 @@
 /**
- * Υπολογισμός προόδου: η μπάρα μετρά πόσα από τα μεταφράσιμα κείμενα έχουν μετάφραση.
+ * Υπολογισμός προόδου: η μπάρα μετρά πόσα από τα μεταφράσιμα κείμενα έχουν πραγματική
+ * μετάφραση — όχι απλώς μη κενό κείμενο, αλλά κείμενο που περιέχει έστω έναν χαρακτήρα
+ * του αλφαβήτου της γλώσσας-στόχου (βλ. LANGUAGE_SCRIPT_PATTERN πιο κάτω). Ένα πεδίο
+ * με κενά ή με κείμενο σε λάθος γλώσσα δεν πρέπει να μετράει ως μεταφρασμένο.
  */
 import type { ProgressStats } from '@metafrasis/shared';
 import { prisma } from '../db.js';
@@ -8,6 +11,20 @@ import { prisma } from '../db.js';
 export function computeProgress(total: number, translated: number): ProgressStats {
   const percent = total === 0 ? 0 : Math.round((translated / total) * 100);
   return { total, translated, percent };
+}
+
+/**
+ * Regex ανά γλώσσα-στόχο για το Postgres `~` operator, αντίστοιχο του
+ * LANGUAGE_SCRIPTS στο client/src/pages/StringEditor.tsx — κρατάμε τα δύο σε
+ * αντιστοιχία αν προστεθεί νέα γλώσσα.
+ */
+const LANGUAGE_SCRIPT_PATTERN: Record<string, string> = {
+  el: '[Ͱ-Ͽἀ-῿]',
+  en: '[a-zA-Z]',
+};
+
+function scriptPattern(language: string): string {
+  return LANGUAGE_SCRIPT_PATTERN[language] ?? '.'; // Άγνωστη γλώσσα: αρκεί οποιοσδήποτε χαρακτήρας.
 }
 
 /**
@@ -24,18 +41,23 @@ export async function progressByFile(
     _count: { _all: true },
   });
 
-  const translated = await prisma.sourceString.groupBy({
-    by: ['fileId'],
-    where: {
-      file: { projectId },
-      removed: false,
-      // Κενή μετάφραση δεν μετρά ως ολοκληρωμένη.
-      translations: { some: { language, NOT: { text: '' } } },
-    },
-    _count: { _all: true },
-  });
+  const pattern = scriptPattern(language);
+  const translatedRows = await prisma.$queryRaw<Array<{ fileId: string; count: bigint }>>`
+    SELECT ss."fileId" as "fileId", COUNT(*)::bigint as count
+    FROM "SourceString" ss
+    JOIN "SourceFile" sf ON sf.id = ss."fileId"
+    WHERE sf."projectId" = ${projectId}
+      AND ss.removed = false
+      AND EXISTS (
+        SELECT 1 FROM "Translation" t
+        WHERE t."stringId" = ss.id
+          AND t.language = ${language}
+          AND t.text ~ ${pattern}
+      )
+    GROUP BY ss."fileId"
+  `;
 
-  const translatedByFile = new Map(translated.map((row) => [row.fileId, row._count._all]));
+  const translatedByFile = new Map(translatedRows.map((row) => [row.fileId, Number(row.count)]));
 
   return new Map(
     totals.map((row) => [
@@ -50,16 +72,23 @@ export async function projectProgress(
   projectId: string,
   language: string,
 ): Promise<ProgressStats> {
-  const [total, translated] = await Promise.all([
+  const pattern = scriptPattern(language);
+  const [total, translatedRows] = await Promise.all([
     prisma.sourceString.count({ where: { file: { projectId }, removed: false } }),
-    prisma.sourceString.count({
-      where: {
-        file: { projectId },
-        removed: false,
-        translations: { some: { language, NOT: { text: '' } } },
-      },
-    }),
+    prisma.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(*)::bigint as count
+      FROM "SourceString" ss
+      JOIN "SourceFile" sf ON sf.id = ss."fileId"
+      WHERE sf."projectId" = ${projectId}
+        AND ss.removed = false
+        AND EXISTS (
+          SELECT 1 FROM "Translation" t
+          WHERE t."stringId" = ss.id
+            AND t.language = ${language}
+            AND t.text ~ ${pattern}
+        )
+    `,
   ]);
 
-  return computeProgress(total, translated);
+  return computeProgress(total, Number(translatedRows[0]?.count ?? 0));
 }
