@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { ThreeDots } from 'react-loader-spinner';
 import type { CommentView, SourceStringView } from '@metafrasis/shared';
 import { el } from '../i18n/el.js';
 import { api } from '../lib/api.js';
@@ -55,7 +56,12 @@ export function StringEditor() {
   }, []);
 
   if (!projectId || !fileId) return null;
-  if (!data) return <div style={{ padding: '2rem' }}>{el.app.loading}</div>;
+  if (!data)
+    return (
+      <div style={{ padding: '2rem', display: 'flex', justifyContent: 'center' }}>
+        <ThreeDots color="#32cd32" height={60} width={60} />
+      </div>
+    );
 
   const translated = data.strings.filter((s) => s.translation).length;
 
