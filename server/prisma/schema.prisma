@@ -197,6 +197,8 @@ model Screenshot {
   originalName String
   mimeType     String
   sizeBytes    Int
+  /// Προαιρετικό σχόλιο του ανεβάσματος — κοινό για όλα τα αρχεία μιας παρτίδας.
+  comment      String?
   uploadedBy   String
   uploadedAt   DateTime @default(now())
 

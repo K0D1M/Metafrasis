@@ -211,6 +211,7 @@ export interface ScreenshotView {
   sizeBytes: number;
   uploadedAt: string;
   uploader: { id: string; username: string; avatarUrl: string | null };
+  comment: string | null;
 }
 
 /* ── Εργασίες ──────────────────────────────────────────────────────────────── */

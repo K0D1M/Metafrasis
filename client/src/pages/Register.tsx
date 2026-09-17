@@ -5,6 +5,7 @@ import { el } from '../i18n/el.js';
 import { useAuth } from '../lib/auth.js';
 import { api, ApiRequestError } from '../lib/api.js';
 import { ThemeToggle } from '../components/common.js';
+import { PasswordField } from '../components/PasswordField.js';
 
 interface InvitePreview {
   email: string;
@@ -114,18 +115,14 @@ export function Register() {
           {fields.username && <div className="field-error">{fields.username}</div>}
         </div>
 
-        <div className="field">
-          <label htmlFor="password">{el.auth.password}</label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete="new-password"
-          />
-          {fields.password && <div className="field-error">{fields.password}</div>}
-        </div>
+        <PasswordField
+          id="password"
+          label={el.auth.password}
+          value={password}
+          onChange={setPassword}
+          autoComplete="new-password"
+          error={fields.password}
+        />
 
         {error && <div className="field-error">{error}</div>}
         {existingAccount && (

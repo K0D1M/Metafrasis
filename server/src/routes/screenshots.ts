@@ -35,6 +35,7 @@ async function toView(row: {
   sizeBytes: number;
   uploadedAt: Date;
   uploader: { id: string; username: string; avatarUrl: string | null };
+  comment: string | null;
 }): Promise<ScreenshotView> {
   return {
     id: row.id,
@@ -44,6 +45,7 @@ async function toView(row: {
     sizeBytes: row.sizeBytes,
     uploadedAt: row.uploadedAt.toISOString(),
     uploader: row.uploader,
+    comment: row.comment,
   };
 }
 
@@ -75,6 +77,8 @@ screenshotsRouter.post('/', requireProjectRole(), upload.single('file'), async (
     return;
   }
 
+  const comment = (req.body?.comment as string)?.trim() || null;
+
   const row = await prisma.screenshot.create({
     data: {
       projectId,
@@ -83,6 +87,7 @@ screenshotsRouter.post('/', requireProjectRole(), upload.single('file'), async (
       mimeType: req.file.mimetype,
       sizeBytes: req.file.size,
       uploadedBy: req.userId!,
+      comment,
     },
     include: { uploader: { select: { id: true, username: true, avatarUrl: true } } },
   });

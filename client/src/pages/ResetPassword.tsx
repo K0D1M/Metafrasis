@@ -5,6 +5,7 @@ import { el } from '../i18n/el.js';
 import { useAuth } from '../lib/auth.js';
 import { api, ApiRequestError } from '../lib/api.js';
 import { ThemeToggle } from '../components/common.js';
+import { PasswordField } from '../components/PasswordField.js';
 
 export function ResetPassword() {
   const { setUser } = useAuth();
@@ -61,19 +62,15 @@ export function ResetPassword() {
           </div>
         ) : (
           <form onSubmit={onSubmit}>
-            <div className="field">
-              <label htmlFor="new-password">{el.passwordReset.newPassword}</label>
-              <input
-                id="new-password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoFocus
-                autoComplete="new-password"
-              />
-              {fields.password && <div className="field-error">{fields.password}</div>}
-            </div>
+            <PasswordField
+              id="new-password"
+              label={el.passwordReset.newPassword}
+              value={password}
+              onChange={setPassword}
+              autoComplete="new-password"
+              autoFocus
+              error={fields.password}
+            />
 
             {error && <div className="field-error">{error}</div>}
 

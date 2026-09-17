@@ -162,6 +162,16 @@ label {
 
 .field { margin-bottom: 0.9rem; }
 
+.password-field { position: relative; }
+.password-field input { padding-right: 2.2rem; }
+.password-field .toggle-visibility {
+  position: absolute;
+  top: 50%;
+  right: 0.3rem;
+  transform: translateY(-50%);
+  padding: 0.25rem;
+}
+
 .field-error {
   color: var(--danger);
   font-size: 0.85em;

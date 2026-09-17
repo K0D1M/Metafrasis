@@ -30,6 +30,8 @@ export const el = {
     username: 'Όνομα χρήστη',
     identifier: 'Email ή όνομα χρήστη',
     password: 'Κωδικός',
+    showPassword: 'Εμφάνιση κωδικού',
+    hidePassword: 'Απόκρυψη κωδικού',
     login: 'Σύνδεση',
     register: 'Δημιουργία λογαριασμού',
     logout: 'Αποσύνδεση',
@@ -172,6 +174,9 @@ export const el = {
     maxSize: (mb: number) => `Έως ${mb} MB ανά εικόνα (PNG, JPEG, WebP, GIF)`,
     uploadedBy: 'Ανέβασε',
     confirmDelete: (name: string) => `Να διαγραφεί το «${name}»;`,
+    addCommentTitle: 'Προσθήκη σχολίου',
+    commentPlaceholder: 'Προαιρετικό σχόλιο για αυτά τα στιγμιότυπα…',
+    commentHint: (count: number) => `Θα ανέβουν ${count} αρχεία με το ίδιο σχόλιο`,
   },
 
   tasks: {

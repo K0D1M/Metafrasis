@@ -19,6 +19,10 @@ export function ScreenshotsTab({ project }: { project: ProjectDetail }) {
   const [preview, setPreview] = useState<ScreenshotView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Αρχεία που μόλις επιλέχθηκαν (κουμπί ή drag-and-drop) και περιμένουν το προαιρετικό
+  // σχόλιο της παρτίδας πριν ξεκινήσει το πραγματικό ανέβασμα.
+  const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
+  const [comment, setComment] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
 
   function reload() {
@@ -30,7 +34,7 @@ export function ScreenshotsTab({ project }: { project: ProjectDetail }) {
 
   useEffect(reload, [project.id]);
 
-  async function handleUpload(file: File) {
+  async function handleUpload(file: File, batchComment: string) {
     setError(null);
     // Ο έλεγχος γίνεται και στον server· εδώ γλιτώνουμε ένα άσκοπο ανέβασμα.
     if (file.size > MAX_SCREENSHOT_BYTES) {
@@ -39,7 +43,7 @@ export function ScreenshotsTab({ project }: { project: ProjectDetail }) {
     }
     setBusy(true);
     try {
-      await api.upload(`/projects/${project.id}/screenshots`, file);
+      await api.upload(`/projects/${project.id}/screenshots`, file, { comment: batchComment });
       reload();
     } catch (err) {
       setError(err instanceof ApiRequestError ? err.message : el.app.error);
@@ -48,12 +52,25 @@ export function ScreenshotsTab({ project }: { project: ProjectDetail }) {
     }
   }
 
-  /** Πολλά αρχεία μπορούν να πέσουν μαζί με drag-and-drop — ανεβαίνουν ένα-ένα, όχι όλα
-   * παράλληλα, ώστε το busy/error state να αντιστοιχεί πάντα στο τρέχον ανέβασμα. */
-  async function handleUploadMany(files: File[]) {
+  /** Πολλά αρχεία ανεβαίνουν ένα-ένα, όχι όλα παράλληλα, ώστε το busy/error state να
+   * αντιστοιχεί πάντα στο τρέχον ανέβασμα — όλα μοιράζονται το ίδιο σχόλιο παρτίδας. */
+  async function handleUploadMany(files: File[], batchComment: string) {
     for (const file of files) {
-      await handleUpload(file);
+      await handleUpload(file, batchComment);
     }
+  }
+
+  function pickFiles(files: File[]) {
+    if (files.length === 0) return;
+    setPendingFiles(files);
+    setComment('');
+  }
+
+  async function confirmPendingUpload() {
+    if (!pendingFiles) return;
+    const files = pendingFiles;
+    setPendingFiles(null);
+    await handleUploadMany(files, comment.trim());
   }
 
   async function handleDelete(item: ScreenshotView) {
@@ -85,10 +102,10 @@ export function ScreenshotsTab({ project }: { project: ProjectDetail }) {
         ref={fileInput}
         type="file"
         accept="image/png,image/jpeg,image/webp,image/gif"
+        multiple
         hidden
         onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (file) void handleUpload(file);
+          pickFiles(Array.from(event.target.files ?? []));
           event.target.value = '';
         }}
       />
@@ -98,7 +115,7 @@ export function ScreenshotsTab({ project }: { project: ProjectDetail }) {
       <DropZone
         accept="image/png,image/jpeg,image/webp,image/gif"
         disabled={busy}
-        onFiles={(files) => void handleUploadMany(files)}
+        onFiles={pickFiles}
       >
         {items.length === 0 ? (
           <div className="card">
@@ -135,6 +152,20 @@ export function ScreenshotsTab({ project }: { project: ProjectDetail }) {
                   <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {item.originalName}
                   </div>
+                  {item.comment && (
+                    <div
+                      className="muted"
+                      style={{
+                        fontSize: '0.85em',
+                        marginTop: '0.2rem',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {item.comment}
+                    </div>
+                  )}
                   <div className="row muted" style={{ fontSize: '0.85em', marginTop: '0.25rem' }}>
                     <Avatar
                       username={item.uploader.username}
@@ -157,6 +188,11 @@ export function ScreenshotsTab({ project }: { project: ProjectDetail }) {
             alt={preview.originalName}
             style={{ width: '100%', borderRadius: 'var(--radius-sm)' }}
           />
+          {preview.comment && (
+            <p style={{ marginTop: '0.75rem', marginBottom: 0, whiteSpace: 'pre-wrap' }}>
+              {preview.comment}
+            </p>
+          )}
           <div className="spread" style={{ marginTop: '0.75rem' }}>
             <span className="muted">
               {el.screenshots.uploadedBy}: {preview.uploader.username} ·{' '}
@@ -167,6 +203,26 @@ export function ScreenshotsTab({ project }: { project: ProjectDetail }) {
                 {el.app.delete}
               </button>
             )}
+          </div>
+        </Modal>
+      )}
+
+      {pendingFiles && (
+        <Modal title={el.screenshots.addCommentTitle} onClose={() => setPendingFiles(null)}>
+          <p className="muted" style={{ marginTop: 0 }}>
+            {el.screenshots.commentHint(pendingFiles.length)}
+          </p>
+          <textarea
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            placeholder={el.screenshots.commentPlaceholder}
+            autoFocus
+          />
+          <div className="row" style={{ justifyContent: 'flex-end', marginTop: '0.75rem' }}>
+            <button onClick={() => setPendingFiles(null)}>{el.app.cancel}</button>
+            <button className="primary" onClick={() => void confirmPendingUpload()}>
+              {el.screenshots.upload}
+            </button>
           </div>
         </Modal>
       )}
