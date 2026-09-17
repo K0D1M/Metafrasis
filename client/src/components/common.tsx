@@ -85,6 +85,21 @@ export function AccountMenu() {
   );
 }
 
+function ShieldIcon() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+      style={{ flexShrink: 0 }}
+    >
+      <path d="M12 2l7 3.2v5.4c0 5-3.2 8.7-7 10.4-3.8-1.7-7-5.4-7-10.4V5.2L12 2Zm0 4.1L8 7.8v2.8c0 3.3 2 5.9 4 7 2-1.1 4-3.7 4-7V7.8l-4-1.7Z" />
+    </svg>
+  );
+}
+
 /** Ορατό μόνο σε γενικούς διαχειριστές — δεν υπάρχει καθόλου menu να μπει μέσα. */
 export function AdminLink() {
   const { user } = useAuth();
@@ -92,7 +107,8 @@ export function AdminLink() {
 
   return (
     <Link to="/admin">
-      <button className="ghost" type="button">
+      <button className="primary" type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+        <ShieldIcon />
         {el.admin.title}
       </button>
     </Link>
