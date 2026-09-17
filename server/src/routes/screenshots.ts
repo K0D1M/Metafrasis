@@ -12,7 +12,12 @@ import {
 import { prisma } from '../db.js';
 import { requireProjectRole } from '../auth.js';
 import { logActivity } from '../services/activity.js';
-import { uploadScreenshot, deleteScreenshot, getScreenshotUrl } from '../storage.js';
+import {
+  uploadScreenshot,
+  deleteScreenshot,
+  getScreenshotUrl,
+  getScreenshotDownloadUrl,
+} from '../storage.js';
 
 export const screenshotsRouter: Router = Router({ mergeParams: true });
 
@@ -41,6 +46,8 @@ async function toView(row: {
     id: row.id,
     // Υπογεγραμμένος σύνδεσμος: το bucket είναι ιδιωτικό, ισχύει προσωρινά.
     url: await getScreenshotUrl(row.storedName),
+    // Ίδιο αρχείο, μόνο με Content-Disposition: attachment ώστε ο browser να το κατεβάζει.
+    downloadUrl: await getScreenshotDownloadUrl(row.storedName, row.originalName),
     originalName: row.originalName,
     sizeBytes: row.sizeBytes,
     uploadedAt: row.uploadedAt.toISOString(),

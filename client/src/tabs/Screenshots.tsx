@@ -198,11 +198,16 @@ export function ScreenshotsTab({ project }: { project: ProjectDetail }) {
               {el.screenshots.uploadedBy}: {preview.uploader.username} ·{' '}
               {(preview.sizeBytes / 1024).toFixed(0)} KB
             </span>
-            {(preview.uploader.id === user?.id || project.role === Role.MANAGER) && (
-              <button className="ghost danger" onClick={() => void handleDelete(preview)}>
-                {el.app.delete}
-              </button>
-            )}
+            <div className="row">
+              <a href={preview.downloadUrl}>
+                <button type="button">{el.screenshots.download}</button>
+              </a>
+              {(preview.uploader.id === user?.id || project.role === Role.MANAGER) && (
+                <button className="ghost danger" onClick={() => void handleDelete(preview)}>
+                  {el.app.delete}
+                </button>
+              )}
+            </div>
           </div>
         </Modal>
       )}

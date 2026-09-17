@@ -54,8 +54,14 @@ declare global {
   }
 }
 
-/** Απαιτεί συνδεδεμένο χρήστη. */
-export const requireAuth: RequestHandler = (req, res, next) => {
+/**
+ * Απαιτεί συνδεδεμένο χρήστη. Το JWT είναι stateless — δεν αρκεί μόνο η υπογραφή,
+ * γιατί ένας απενεργοποιημένος λογαριασμός θα κρατούσε το cookie του λειτουργικό μέχρι
+ * να λήξει φυσικά (έως 7 μέρες). Ο έλεγχος deactivatedAt εδώ σημαίνει ένα ερώτημα στη
+ * βάση σε ΚΑΘΕ αίτημα, αποδεκτό κόστος για άμεση αποσύνδεση σε μια εφαρμογή αυτής της
+ * κλίμακας.
+ */
+export const requireAuth: RequestHandler = async (req, res, next) => {
   const token = req.cookies?.[COOKIE_NAME];
   if (!token) {
     res.status(401).json({ error: 'Απαιτείται σύνδεση' });
@@ -63,6 +69,14 @@ export const requireAuth: RequestHandler = (req, res, next) => {
   }
   try {
     const payload = jwt.verify(token, JWT_SECRET as string) as { sub: string };
+
+    const user = await prisma.user.findUnique({ where: { id: payload.sub } });
+    if (!user || user.deactivatedAt) {
+      clearSession(res);
+      res.status(401).json({ error: 'Η συνεδρία έληξε' });
+      return;
+    }
+
     req.userId = payload.sub;
     next();
   } catch {

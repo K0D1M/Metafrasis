@@ -246,6 +246,8 @@ export const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'im
 export interface ScreenshotView {
   id: string;
   url: string;
+  /** Ίδιο αρχείο, χωρίς επεξεργασία — μόνο Content-Disposition: attachment. */
+  downloadUrl: string;
   originalName: string;
   sizeBytes: number;
   uploadedAt: string;

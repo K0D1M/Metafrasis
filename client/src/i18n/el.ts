@@ -176,6 +176,7 @@ export const el = {
     emptyHint: 'Πάτα «Ανέβασμα» για να προσθέσεις εικόνες',
     maxSize: (mb: number) => `Έως ${mb} MB ανά εικόνα (PNG, JPEG, WebP, GIF)`,
     uploadedBy: 'Ανέβασε',
+    download: 'Λήψη',
     confirmDelete: (name: string) => `Να διαγραφεί το «${name}»;`,
     addCommentTitle: 'Προσθήκη σχολίου',
     commentPlaceholder: 'Προαιρετικό σχόλιο για αυτά τα στιγμιότυπα…',

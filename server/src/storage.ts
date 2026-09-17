@@ -77,3 +77,19 @@ export async function getScreenshotUrl(objectKey: string): Promise<string> {
   if (error) throw error;
   return data.signedUrl;
 }
+
+/**
+ * Ίδιος υπογεγραμμένος σύνδεσμος, αλλά με Content-Disposition: attachment — ο browser
+ * κατεβάζει το αρχείο αντί να το ανοίξει inline. Το Storage στέλνει τα ίδια bytes χωρίς
+ * καμία επεξεργασία· το download param μόνο αλλάζει το header, όχι το περιεχόμενο.
+ */
+export async function getScreenshotDownloadUrl(
+  objectKey: string,
+  downloadName: string,
+): Promise<string> {
+  const { data, error } = await supabase.storage
+    .from(SCREENSHOTS_BUCKET)
+    .createSignedUrl(objectKey, SIGNED_URL_TTL_SECONDS, { download: downloadName });
+  if (error) throw error;
+  return data.signedUrl;
+}
