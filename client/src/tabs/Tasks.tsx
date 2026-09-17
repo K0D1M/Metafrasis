@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
   Role,
   TaskStatus,
@@ -10,6 +10,8 @@ import { el } from '../i18n/el.js';
 import { api, ApiRequestError } from '../lib/api.js';
 import { useAuth } from '../lib/auth.js';
 import { Avatar, EmptyState, formatDate } from '../components/common.js';
+import { MentionTextarea } from '../components/MentionTextarea.js';
+import { renderWithMentions } from '../lib/mentions.js';
 import type { ProjectDetail } from '../pages/ProjectWindow.js';
 
 export function TasksTab({ project }: { project: ProjectDetail }) {
@@ -82,6 +84,16 @@ function TaskCard({
   const { user } = useAuth();
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
+  const [members, setMembers] = useState<MemberView[]>([]);
+
+  useEffect(() => {
+    api
+      .get<MemberView[]>(`/projects/${project.id}/members`)
+      .then(setMembers)
+      .catch(() => setMembers([]));
+  }, [project.id]);
+
+  const validUsernames = useMemo(() => new Set(members.map((m) => m.username)), [members]);
 
   const done = task.status === TaskStatus.DONE;
   const canToggle = task.assignee.id === user?.id || project.role === Role.MANAGER;
@@ -159,7 +171,9 @@ function TaskCard({
                       {formatDate(c.createdAt)}
                     </span>
                   </div>
-                  <div style={{ whiteSpace: 'pre-wrap' }}>{c.body}</div>
+                  <div style={{ whiteSpace: 'pre-wrap' }}>
+                    {renderWithMentions(c.body, validUsernames)}
+                  </div>
                 </div>
               </div>
             ))}
@@ -167,9 +181,10 @@ function TaskCard({
         )}
 
         <form onSubmit={comment} style={{ marginTop: '0.75rem' }}>
-          <textarea
+          <MentionTextarea
             value={body}
-            onChange={(e) => setBody(e.target.value)}
+            onChange={setBody}
+            members={members}
             placeholder={el.editor.addComment}
             style={{ minHeight: 54 }}
           />

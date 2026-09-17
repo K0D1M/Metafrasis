@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ThreeDots } from 'react-loader-spinner';
-import type { CommentView, SourceStringView } from '@metafrasis/shared';
+import type { CommentView, MemberView, SourceStringView } from '@metafrasis/shared';
 import { el } from '../i18n/el.js';
 import { api } from '../lib/api.js';
 import { Avatar, ThemeToggle, formatDate } from '../components/common.js';
+import { MentionTextarea } from '../components/MentionTextarea.js';
+import { renderWithMentions } from '../lib/mentions.js';
 
 interface StringsResponse {
   fileName: string;
@@ -265,6 +267,7 @@ function StringRow({
 
 function CommentThread({ projectId, stringId }: { projectId: string; stringId: string }) {
   const [comments, setComments] = useState<CommentView[] | null>(null);
+  const [members, setMembers] = useState<MemberView[]>([]);
   const [body, setBody] = useState('');
   const [replyTo, setReplyTo] = useState<string | null>(null);
 
@@ -276,6 +279,14 @@ function CommentThread({ projectId, stringId }: { projectId: string; stringId: s
   }
 
   useEffect(reload, [projectId, stringId]);
+  useEffect(() => {
+    api
+      .get<MemberView[]>(`/projects/${projectId}/members`)
+      .then(setMembers)
+      .catch(() => setMembers([]));
+  }, [projectId]);
+
+  const validUsernames = useMemo(() => new Set(members.map((m) => m.username)), [members]);
 
   async function send() {
     if (!body.trim()) return;
@@ -297,7 +308,12 @@ function CommentThread({ projectId, stringId }: { projectId: string; stringId: s
       ) : (
         <div className="stack" style={{ gap: '0.6rem' }}>
           {comments.map((comment) => (
-            <CommentNode key={comment.id} comment={comment} onReply={setReplyTo} />
+            <CommentNode
+              key={comment.id}
+              comment={comment}
+              onReply={setReplyTo}
+              validUsernames={validUsernames}
+            />
           ))}
         </div>
       )}
@@ -311,9 +327,10 @@ function CommentThread({ projectId, stringId }: { projectId: string; stringId: s
             </button>
           </div>
         )}
-        <textarea
+        <MentionTextarea
           value={body}
-          onChange={(e) => setBody(e.target.value)}
+          onChange={setBody}
+          members={members}
           placeholder={el.editor.addComment}
           style={{ minHeight: 56 }}
         />
@@ -330,9 +347,11 @@ function CommentThread({ projectId, stringId }: { projectId: string; stringId: s
 function CommentNode({
   comment,
   onReply,
+  validUsernames,
 }: {
   comment: CommentView;
   onReply: (id: string) => void;
+  validUsernames: ReadonlySet<string>;
 }) {
   return (
     <div>
@@ -345,7 +364,9 @@ function CommentNode({
               {formatDate(comment.createdAt)}
             </span>
           </div>
-          <div style={{ whiteSpace: 'pre-wrap' }}>{comment.body}</div>
+          <div style={{ whiteSpace: 'pre-wrap' }}>
+            {renderWithMentions(comment.body, validUsernames)}
+          </div>
           <button className="ghost muted" style={{ padding: '0.1rem 0' }} onClick={() => onReply(comment.id)}>
             {el.editor.reply}
           </button>
@@ -358,7 +379,7 @@ function CommentNode({
           style={{ gap: '0.6rem', marginInlineStart: '2rem', marginTop: '0.6rem' }}
         >
           {comment.replies.map((reply) => (
-            <CommentNode key={reply.id} comment={reply} onReply={onReply} />
+            <CommentNode key={reply.id} comment={reply} onReply={onReply} validUsernames={validUsernames} />
           ))}
         </div>
       )}

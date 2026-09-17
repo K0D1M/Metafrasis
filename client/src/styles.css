@@ -263,6 +263,8 @@ tbody tr:last-child td { border-bottom: none; }
 .badge.warning { background: var(--warning-bg); color: var(--warning); }
 .badge.success { background: var(--success-bg); color: var(--success); }
 
+.mention { color: var(--accent); font-weight: 500; }
+
 /* ── Κουμπί εμφανίζεται μόνο στο hover του γονικού — π.χ. αντιγραφή πρωτότυπου ──── */
 
 .reveal-on-hover {

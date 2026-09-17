@@ -284,6 +284,7 @@ export const el = {
   notificationTypes: {
     'task.assign': 'Σου ανατέθηκε η εργασία',
     'comment.reply': 'Νέο σχόλιο στο κείμενο',
+    'comment.mention': 'Σε ανέφεραν σε σχόλιο',
     'qa.create': 'Νέα αναφορά QA',
     'qa.resolve': 'Επιλύθηκε η αναφορά',
     'file.upload': 'Νέο αρχείο',

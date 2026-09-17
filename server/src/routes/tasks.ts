@@ -6,12 +6,13 @@ import {
   NotificationType,
   Role,
   TaskStatus,
+  extractMentions,
   type TaskView,
 } from '@metafrasis/shared';
 import { prisma } from '../db.js';
 import { requireProjectRole } from '../auth.js';
 import { logActivity } from '../services/activity.js';
-import { notify } from '../services/notify.js';
+import { notify, notifyMany } from '../services/notify.js';
 
 export const tasksRouter: Router = Router({ mergeParams: true });
 
@@ -208,6 +209,29 @@ tasksRouter.post('/:taskId/comments', requireProjectRole(), async (req, res) => 
     data: { taskId: task.id, authorId: req.userId!, body: parsed.data.body },
     include: { author: { select: { id: true, username: true, avatarUrl: true } } },
   });
+
+  // @αναφορές: πρώτη φορά που αυτό το route στέλνει ειδοποίηση — τα σχόλια εργασιών
+  // δεν είχαν καθόλου ειδοποιήσεις μέχρι τώρα (μόνο η ανάθεση εργασίας έχει).
+  const members = await prisma.projectMember.findMany({
+    where: { projectId: req.params.projectId! },
+    include: { user: { select: { id: true, username: true } } },
+  });
+  const mentionedUsernames = extractMentions(
+    parsed.data.body,
+    new Set(members.map((m) => m.user.username)),
+  );
+  const mentionedUserIds = members
+    .filter((m) => mentionedUsernames.includes(m.user.username))
+    .map((m) => m.user.id);
+  if (mentionedUserIds.length > 0) {
+    await notifyMany(mentionedUserIds, {
+      projectId: req.params.projectId!,
+      type: NotificationType.COMMENT_MENTION,
+      target: task.title,
+      link: `/projects/${req.params.projectId}?tab=tasks`,
+      actorId: req.userId!,
+    });
+  }
 
   res.status(201).json({
     id: comment.id,

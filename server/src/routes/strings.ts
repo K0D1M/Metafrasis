@@ -4,13 +4,14 @@ import {
   saveTranslationSchema,
   createCommentSchema,
   NotificationType,
+  extractMentions,
   type SourceStringView,
   type CommentView,
 } from '@metafrasis/shared';
 import { prisma } from '../db.js';
 import { requireProjectRole } from '../auth.js';
 import { logActivity } from '../services/activity.js';
-import { notify } from '../services/notify.js';
+import { notify, notifyMany } from '../services/notify.js';
 
 export const stringsRouter: Router = Router({ mergeParams: true });
 
@@ -222,6 +223,26 @@ stringsRouter.post('/strings/:stringId/comments', requireProjectRole(), async (r
       userId: recipientId,
       projectId: req.params.projectId!,
       type: NotificationType.COMMENT_REPLY,
+      target: target.key,
+      link: `/projects/${req.params.projectId}/files/${target.fileId}`,
+      actorId: req.userId!,
+    });
+  }
+
+  // @αναφορές: ειδοποιούμε κάθε αναφερόμενο μέλος, εκτός από όποιον ήδη ειδοποιήθηκε
+  // παραπάνω (απάντηση/μεταφραστής) — το notifyMany αποκλείει ήδη τον ίδιο τον συγγραφέα.
+  const members = await prisma.projectMember.findMany({
+    where: { projectId: req.params.projectId! },
+    include: { user: { select: { id: true, username: true } } },
+  });
+  const mentionedUsernames = extractMentions(body, new Set(members.map((m) => m.user.username)));
+  const mentionedUserIds = members
+    .filter((m) => mentionedUsernames.includes(m.user.username) && m.user.id !== recipientId)
+    .map((m) => m.user.id);
+  if (mentionedUserIds.length > 0) {
+    await notifyMany(mentionedUserIds, {
+      projectId: req.params.projectId!,
+      type: NotificationType.COMMENT_MENTION,
       target: target.key,
       link: `/projects/${req.params.projectId}/files/${target.fileId}`,
       actorId: req.userId!,

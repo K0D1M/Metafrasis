@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+export { extractMentions, splitMentions, type MentionSegment } from './mentions.js';
+
 /* ── Ρόλοι ─────────────────────────────────────────────────────────────────── */
 
 export const Role = {
@@ -324,6 +326,7 @@ export interface ActivityView {
 export const NotificationType = {
   TASK_ASSIGN: 'task.assign',
   COMMENT_REPLY: 'comment.reply',
+  COMMENT_MENTION: 'comment.mention',
   QA_CREATE: ActivityAction.QA_CREATE,
   QA_RESOLVE: ActivityAction.QA_RESOLVE,
   FILE_UPLOAD: ActivityAction.FILE_UPLOAD,
