@@ -26,6 +26,11 @@ model User {
   /// Διαδρομή ή data URI του στρογγυλού avatar.
   avatarUrl    String?
   createdAt    DateTime @default(now())
+  /// Γενικός διαχειριστής της εφαρμογής — ανεξάρτητος από τον ρόλο σε κάθε project.
+  isAdmin       Boolean   @default(false)
+  /// Μη μηδενικό: ο λογαριασμός είναι απενεργοποιημένος — δεν μπορεί να συνδεθεί, τα
+  /// δεδομένα του παραμένουν, αλλά το username εμφανίζεται ως "deactivated_user_<id>".
+  deactivatedAt DateTime?
 
   memberships    ProjectMember[]
   translations   Translation[]

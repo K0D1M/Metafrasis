@@ -294,4 +294,22 @@ export const el = {
     'file.upload': 'Νέο αρχείο',
     'file.update': 'Ενημερώθηκε το αρχείο',
   } as Record<string, string>,
+
+  admin: {
+    title: 'Διαχείριση',
+    projectsTab: 'Projects',
+    usersTab: 'Χρήστες',
+    members: 'Μέλη',
+    addMember: 'Προσθήκη μέλους',
+    selectUser: 'Επιλογή χρήστη',
+    role: 'Ρόλος',
+    remove: 'Αφαίρεση',
+    admin: 'Διαχειριστής',
+    deactivated: 'Απενεργοποιημένος',
+    deactivate: 'Απενεργοποίηση',
+    reactivate: 'Επανενεργοποίηση',
+    confirmDeactivate: (username: string) => `Απενεργοποίηση του «${username}»;`,
+    noProjects: 'Δεν υπάρχουν project ακόμα',
+    noUsers: 'Δεν υπάρχουν εγγεγραμμένοι χρήστες',
+  },
 } as const;

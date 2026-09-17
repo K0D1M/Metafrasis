@@ -4,7 +4,7 @@ import { LANGUAGES, roleLabels, type ProjectSummary } from '@metafrasis/shared';
 import { el } from '../i18n/el.js';
 import { api, ApiRequestError } from '../lib/api.js';
 import { useAuth } from '../lib/auth.js';
-import { AccountMenu, EmptyState, Modal, ProgressBar, ThemeToggle } from '../components/common.js';
+import { AccountMenu, AdminLink, EmptyState, Modal, ProgressBar, ThemeToggle } from '../components/common.js';
 import { NotificationBell } from '../components/NotificationBell.js';
 
 export function ProjectList() {
@@ -21,6 +21,7 @@ export function ProjectList() {
       <div className="spread" style={{ marginBottom: '1.5rem' }}>
         <h1 style={{ margin: 0 }}>{el.app.name}</h1>
         <div className="row">
+          <AdminLink />
           <ThemeToggle />
           <NotificationBell />
           <AccountMenu />

@@ -33,12 +33,14 @@ function toSessionUser(user: {
   email: string;
   username: string;
   avatarUrl: string | null;
+  isAdmin: boolean;
 }): SessionUser {
   return {
     id: user.id,
     email: user.email,
     username: user.username,
     avatarUrl: user.avatarUrl,
+    isAdmin: user.isAdmin,
   };
 }
 
@@ -108,8 +110,13 @@ authRouter.post('/login', async (req, res) => {
   }
 
   const user = await findByIdentifier(parsed.data.identifier);
-  // Ίδιο μήνυμα είτε λείπει ο χρήστης είτε ο κωδικός — δεν αποκαλύπτουμε ποια στοιχεία υπάρχουν.
-  if (!user || !(await verifyPassword(user.passwordHash, parsed.data.password))) {
+  // Ίδιο μήνυμα είτε λείπει ο χρήστης είτε ο κωδικός είτε απενεργοποιημένος λογαριασμός —
+  // δεν αποκαλύπτουμε σε κάποιον χωρίς πρόσβαση αν το πρόβλημα είναι ο κωδικός ή η κατάσταση του λογαριασμού.
+  if (
+    !user ||
+    user.deactivatedAt ||
+    !(await verifyPassword(user.passwordHash, parsed.data.password))
+  ) {
     res.status(401).json({ error: 'Λάθος στοιχεία σύνδεσης' });
     return;
   }

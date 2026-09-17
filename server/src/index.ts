@@ -14,7 +14,8 @@ import { qaRouter } from './routes/qa.js';
 import { activityRouter } from './routes/activity.js';
 import { translationsRouter } from './routes/translations.js';
 import { notificationsRouter } from './routes/notifications.js';
-import { requireAuth } from './auth.js';
+import { adminRouter } from './routes/admin.js';
+import { requireAuth, requireGlobalAdmin } from './auth.js';
 import { ensureScreenshotsBucket } from './storage.js';
 import { CLIENT_ORIGIN, IS_PRODUCTION } from './config.js';
 
@@ -62,6 +63,7 @@ app.use('/api/projects/:projectId/qa', requireAuth, qaRouter);
 app.use('/api/projects/:projectId/translations', requireAuth, translationsRouter);
 app.use('/api/projects/:projectId', requireAuth, activityRouter);
 app.use('/api/projects/:projectId', requireAuth, stringsRouter);
+app.use('/api/admin', requireAuth, requireGlobalAdmin, adminRouter);
 
 /**
  * Σε production, ο ίδιος server σερβίρει και το build του client — ένα service στο

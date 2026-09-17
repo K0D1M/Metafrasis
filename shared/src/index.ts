@@ -70,6 +70,7 @@ export interface SessionUser {
   email: string;
   username: string;
   avatarUrl: string | null;
+  isAdmin: boolean;
 }
 
 /* ── Projects ──────────────────────────────────────────────────────────────── */
@@ -184,6 +185,40 @@ export interface MemberView {
   avatarUrl: string | null;
   role: Role;
   joinedAt: string;
+}
+
+/* ── Γενική διαχείριση (admin dashboard) ──────────────────────────────────────
+ * Ξεχωριστά από τα ProjectSummary/MemberView: εδώ το email είναι πάντα ορατό (μόνο
+ * γενικός διαχειριστής βλέπει αυτά τα endpoints) — διαφορετικό συμβόλαιο ορατότητας
+ * από αυτό που εφαρμόζεται στα μέλη ενός project μεταξύ τους. */
+
+export interface AdminProjectView {
+  id: string;
+  name: string;
+  sourceLanguage: string;
+  targetLanguages: string[];
+  createdAt: string;
+  progress: ProgressStats;
+  members: Array<{
+    userId: string;
+    username: string;
+    email: string;
+    avatarUrl: string | null;
+    role: Role;
+    joinedAt: string;
+  }>;
+}
+
+export interface AdminUserView {
+  id: string;
+  /** Το πραγματικό username — δεν εφαρμόζεται εδώ η μεταμφίεση deactivated_user_<id>. */
+  username: string;
+  email: string;
+  avatarUrl: string | null;
+  isAdmin: boolean;
+  deactivatedAt: string | null;
+  createdAt: string;
+  memberships: Array<{ projectId: string; projectName: string; role: Role }>;
 }
 
 export const inviteSchema = z.object({

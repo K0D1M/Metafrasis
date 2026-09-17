@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import type { ProgressStats } from '@metafrasis/shared';
 import { el } from '../i18n/el.js';
 import { useAuth } from '../lib/auth.js';
@@ -81,6 +82,20 @@ export function AccountMenu() {
       </button>
       {open && <ProfileModal onClose={() => setOpen(false)} />}
     </>
+  );
+}
+
+/** Ορατό μόνο σε γενικούς διαχειριστές — δεν υπάρχει καθόλου menu να μπει μέσα. */
+export function AdminLink() {
+  const { user } = useAuth();
+  if (!user?.isAdmin) return null;
+
+  return (
+    <Link to="/admin">
+      <button className="ghost" type="button">
+        {el.admin.title}
+      </button>
+    </Link>
   );
 }
 

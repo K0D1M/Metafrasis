@@ -4,7 +4,7 @@ import { Role, type ProgressStats } from '@metafrasis/shared';
 import { el } from '../i18n/el.js';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.js';
-import { AccountMenu, ProgressBar, ThemeToggle } from '../components/common.js';
+import { AccountMenu, AdminLink, ProgressBar, ThemeToggle } from '../components/common.js';
 import { NotificationBell } from '../components/NotificationBell.js';
 import { TabIcon } from '../components/TabIcon.js';
 import { SourcesTab } from '../tabs/Sources.js';
@@ -98,6 +98,7 @@ export function ProjectWindow() {
           <h1 style={{ margin: '0.2rem 0 0' }}>{project.name}</h1>
         </div>
         <div className="row">
+          <AdminLink />
           <ThemeToggle />
           <NotificationBell />
           <AccountMenu />

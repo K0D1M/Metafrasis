@@ -102,3 +102,24 @@ export function requireProjectRole(options: { managerOnly?: boolean } = {}): Req
     next();
   };
 }
+
+/**
+ * Απαιτεί γενικό διαχειριστή της εφαρμογής — ανεξάρτητο από ρόλο σε οποιοδήποτε
+ * project. Δεν επαναχρησιμοποιεί το requireProjectRole: εκείνο κρύβει σκόπιμα την
+ * ύπαρξη ενός project από όποιον δεν είναι μέλος (404 αντί για 403)· εδώ δεν υπάρχει
+ * κάτι να κρυφτεί — ένα ειλικρινές 403 αρκεί.
+ */
+export const requireGlobalAdmin: RequestHandler = async (req, res, next) => {
+  if (!req.userId) {
+    res.status(401).json({ error: 'Απαιτείται σύνδεση' });
+    return;
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: req.userId } });
+  if (!user?.isAdmin) {
+    res.status(403).json({ error: 'Απαιτούνται δικαιώματα γενικού διαχειριστή' });
+    return;
+  }
+
+  next();
+};

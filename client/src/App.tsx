@@ -10,12 +10,21 @@ import { AcceptInvite } from './pages/AcceptInvite.js';
 import { ProjectList } from './pages/ProjectList.js';
 import { ProjectWindow } from './pages/ProjectWindow.js';
 import { StringEditor } from './pages/StringEditor.js';
+import { AdminDashboard } from './pages/AdminDashboard.js';
 
 /** Κρατά τον χρήστη στη σελίδα σύνδεσης όσο δεν υπάρχει συνεδρία. */
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <div style={{ padding: '2rem' }}>{el.app.loading}</div>;
   if (!user) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+
+/** Μόνο για γενικούς διαχειριστές — όχι δικαίωμα σε κανένα project, καθολικό. */
+function RequireAdmin({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) return <div style={{ padding: '2rem' }}>{el.app.loading}</div>;
+  if (!user?.isAdmin) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 
@@ -103,6 +112,16 @@ export function App() {
               element={
                 <RequireAuth>
                   <StringEditor />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <AdminDashboard />
+                  </RequireAdmin>
                 </RequireAuth>
               }
             />
