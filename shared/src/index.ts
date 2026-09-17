@@ -124,6 +124,7 @@ export interface SourceFileSummary {
   revision: number;
   progress: ProgressStats;
   updatedAt: string;
+  updatedBy: { id: string; username: string } | null;
 }
 
 /** Στάδιο ενεργού ανεβάσματος αρχείου, όπως παρακολουθείται στη μνήμη του server. */
@@ -178,7 +179,8 @@ export interface CommentView {
 export interface MemberView {
   userId: string;
   username: string;
-  email: string;
+  /** Ορατό μόνο σε διαχειριστές του project — null για τους υπόλοιπους. */
+  email: string | null;
   avatarUrl: string | null;
   role: Role;
   joinedAt: string;
@@ -280,6 +282,7 @@ export interface QaReportView {
   author: { id: string; username: string; avatarUrl: string | null };
   resolvedBy: { id: string; username: string } | null;
   string: { id: string; key: string; fileName: string } | null;
+  screenshot: { url: string; originalName: string } | null;
 }
 
 /* ── Δραστηριότητα ─────────────────────────────────────────────────────────── */

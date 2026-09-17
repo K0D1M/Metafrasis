@@ -77,7 +77,11 @@ filesRouter.get('/', requireProjectRole(), async (req, res) => {
       include: {
         // Τα κείμενα που λείπουν από την τρέχουσα αναθεώρηση δεν μετρούν στη στήλη "Strings".
         _count: { select: { strings: { where: { removed: false } } } },
-        versions: { orderBy: { revision: 'desc' }, take: 1 },
+        versions: {
+          orderBy: { revision: 'desc' },
+          take: 1,
+          include: { uploader: { select: { id: true, username: true } } },
+        },
       },
     }),
     progressByFile(projectId, primaryTarget(project.targetLanguages)),
@@ -96,6 +100,7 @@ filesRouter.get('/', requireProjectRole(), async (req, res) => {
         revision: f.versions[0]?.revision ?? 0,
         progress: progress.get(f.id) ?? { total: 0, translated: 0, percent: 0 },
         updatedAt: (f.versions[0]?.uploadedAt ?? f.createdAt).toISOString(),
+        updatedBy: f.versions[0]?.uploader ?? null,
       }),
     ),
   });

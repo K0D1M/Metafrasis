@@ -1,7 +1,12 @@
 import { Router } from 'express';
+import multer from 'multer';
+import { randomBytes } from 'node:crypto';
+import { extname } from 'node:path';
 import {
   ActivityAction,
+  ALLOWED_IMAGE_TYPES,
   createQaReportSchema,
+  MAX_SCREENSHOT_BYTES,
   NotificationType,
   QaStatus,
   Role,
@@ -12,8 +17,22 @@ import { prisma } from '../db.js';
 import { requireProjectRole } from '../auth.js';
 import { logActivity } from '../services/activity.js';
 import { notify, notifyMany } from '../services/notify.js';
+import { uploadScreenshot, deleteScreenshot, getScreenshotUrl } from '../storage.js';
 
 export const qaRouter: Router = Router({ mergeParams: true });
+
+/** Ίδιο multer με τα Screenshots — μια αναφορά μπορεί προαιρετικά να έχει μία εικόνα. */
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_SCREENSHOT_BYTES },
+  fileFilter: (_req, file, callback) => {
+    if ((ALLOWED_IMAGE_TYPES as readonly string[]).includes(file.mimetype)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Επιτρέπονται μόνο εικόνες PNG, JPEG, WebP ή GIF'));
+    }
+  },
+});
 
 const qaInclude = {
   author: { select: { id: true, username: true, avatarUrl: true } },
@@ -32,9 +51,11 @@ type QaRow = {
   author: { id: string; username: string; avatarUrl: string | null };
   resolvedBy: { id: string; username: string } | null;
   string: { id: string; key: string; file: { name: string } } | null;
+  screenshotStoredName: string | null;
+  screenshotOriginalName: string | null;
 };
 
-function toView(row: QaRow): QaReportView {
+async function toView(row: QaRow): Promise<QaReportView> {
   return {
     id: row.id,
     title: row.title,
@@ -48,6 +69,12 @@ function toView(row: QaRow): QaReportView {
     string: row.string
       ? { id: row.string.id, key: row.string.key, fileName: row.string.file.name }
       : null,
+    screenshot: row.screenshotStoredName
+      ? {
+          url: await getScreenshotUrl(row.screenshotStoredName),
+          originalName: row.screenshotOriginalName ?? row.screenshotStoredName,
+        }
+      : null,
   };
 }
 
@@ -58,10 +85,12 @@ qaRouter.get('/', requireProjectRole(), async (req, res) => {
     orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
     include: qaInclude,
   });
-  res.json(rows.map(toView));
+  res.json(await Promise.all(rows.map(toView)));
 });
 
-qaRouter.post('/', requireProjectRole(), async (req, res) => {
+// upload.single('file') με προαιρετικό αρχείο: μια αναφορά μπορεί να έρθει με ή χωρίς
+// στιγμιότυπο — σε αντίθεση με τα Screenshots, εδώ δεν απαιτείται αρχείο.
+qaRouter.post('/', requireProjectRole(), upload.single('file'), async (req, res) => {
   const parsed = createQaReportSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Μη έγκυρα στοιχεία', fields: parsed.error.flatten().fieldErrors });
@@ -81,6 +110,18 @@ qaRouter.post('/', requireProjectRole(), async (req, res) => {
     }
   }
 
+  let screenshotStoredName: string | null = null;
+  if (req.file) {
+    screenshotStoredName = `qa/${projectId}/${randomBytes(16).toString('hex')}${extname(req.file.originalname) || '.png'}`;
+    try {
+      await uploadScreenshot(screenshotStoredName, req.file.buffer, req.file.mimetype);
+    } catch (error) {
+      console.error('[metafrasis] αποτυχία ανεβάσματος στιγμιότυπου QA:', error);
+      res.status(502).json({ error: 'Αποτυχία αποθήκευσης του στιγμιότυπου' });
+      return;
+    }
+  }
+
   const report = await prisma.qaReport.create({
     data: {
       projectId,
@@ -89,6 +130,10 @@ qaRouter.post('/', requireProjectRole(), async (req, res) => {
       severity,
       stringId: stringId ?? null,
       authorId: req.userId!,
+      screenshotStoredName,
+      screenshotOriginalName: req.file?.originalname ?? null,
+      screenshotMimeType: req.file?.mimetype ?? null,
+      screenshotSizeBytes: req.file?.size ?? null,
     },
     include: qaInclude,
   });
@@ -113,7 +158,7 @@ qaRouter.post('/', requireProjectRole(), async (req, res) => {
     actorId: req.userId!,
   });
 
-  res.status(201).json(toView(report));
+  res.status(201).json(await toView(report));
 });
 
 /** Επίλυση ή επαναφορά αναφοράς. */
@@ -154,7 +199,7 @@ qaRouter.patch('/:reportId', requireProjectRole(), async (req, res) => {
     });
   }
 
-  res.json(toView(updated));
+  res.json(await toView(updated));
 });
 
 qaRouter.delete('/:reportId', requireProjectRole(), async (req, res) => {
@@ -170,5 +215,6 @@ qaRouter.delete('/:reportId', requireProjectRole(), async (req, res) => {
     return;
   }
   await prisma.qaReport.delete({ where: { id: report.id } });
+  if (report.screenshotStoredName) await deleteScreenshot(report.screenshotStoredName);
   res.status(204).end();
 });

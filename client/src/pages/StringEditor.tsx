@@ -197,6 +197,17 @@ function StringRow({
     }
   }
 
+  /** Επιβεβαίωση ελέγχου χωρίς αλλαγή στη μετάφραση — π.χ. το πρωτότυπο άλλαξε ελάχιστα
+   * και η υπάρχουσα μετάφραση παραμένει σωστή. */
+  async function confirmReviewed() {
+    try {
+      await api.patch(`/projects/${projectId}/strings/${item.id}/review`);
+      onSaved(item.id, text);
+    } catch {
+      // Αν αποτύχει, το badge παραμένει — ο χρήστης μπορεί να ξαναδοκιμάσει.
+    }
+  }
+
   return (
     <div style={{ borderBottom: '1px solid var(--border)', padding: '0.75rem 1rem' }}>
       <div className="spread" style={{ marginBottom: '0.4rem' }}>
@@ -210,9 +221,20 @@ function StringRow({
         </div>
         <div className="row">
           {item.needsReview && (
-            <span className="badge warning" title={el.editor.needsReviewHint}>
-              {el.editor.needsReview}
-            </span>
+            <>
+              <span className="badge warning" title={el.editor.needsReviewHint}>
+                {el.editor.needsReview}
+              </span>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => void confirmReviewed()}
+                title={el.editor.confirmReview}
+                aria-label={el.editor.confirmReview}
+              >
+                ✓
+              </button>
+            </>
           )}
           {status === 'saved' && <span className="badge">{el.editor.saved}</span>}
           <button className="ghost" onClick={onToggleComments}>

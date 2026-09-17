@@ -9,13 +9,14 @@ import {
 import { el } from '../i18n/el.js';
 import { api, ApiRequestError } from '../lib/api.js';
 import { useAuth } from '../lib/auth.js';
-import { Avatar, EmptyState, formatDate } from '../components/common.js';
+import { Avatar, EmptyState, Modal, formatDate } from '../components/common.js';
 import type { ProjectDetail } from '../pages/ProjectWindow.js';
 
 export function QaTab({ project }: { project: ProjectDetail }) {
   const { user } = useAuth();
   const [reports, setReports] = useState<QaReportView[] | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [preview, setPreview] = useState<{ url: string; originalName: string } | null>(null);
 
   function reload() {
     api
@@ -95,6 +96,25 @@ export function QaTab({ project }: { project: ProjectDetail }) {
 
                 <p style={{ whiteSpace: 'pre-wrap' }}>{report.description}</p>
 
+                {report.screenshot && (
+                  <button
+                    className="ghost"
+                    style={{ padding: 0, marginBottom: '0.6rem', cursor: 'zoom-in' }}
+                    onClick={() => setPreview(report.screenshot)}
+                  >
+                    <img
+                      src={report.screenshot.url}
+                      alt={report.screenshot.originalName}
+                      style={{
+                        maxWidth: 220,
+                        maxHeight: 140,
+                        borderRadius: 'var(--radius-sm)',
+                        display: 'block',
+                      }}
+                    />
+                  </button>
+                )}
+
                 <div className="spread">
                   <div className="row muted" style={{ fontSize: '0.85em' }}>
                     <Avatar
@@ -123,6 +143,16 @@ export function QaTab({ project }: { project: ProjectDetail }) {
           })}
         </div>
       )}
+
+      {preview && (
+        <Modal title={preview.originalName} onClose={() => setPreview(null)}>
+          <img
+            src={preview.url}
+            alt={preview.originalName}
+            style={{ width: '100%', borderRadius: 'var(--radius-sm)' }}
+          />
+        </Modal>
+      )}
     </div>
   );
 }
@@ -139,6 +169,7 @@ function NewReportForm({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [severity, setSeverity] = useState<QaSeverity>(QaSeverity.MEDIUM);
+  const [screenshot, setScreenshot] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -147,7 +178,11 @@ function NewReportForm({
     setError(null);
     setBusy(true);
     try {
-      await api.post(`/projects/${projectId}/qa`, { title, description, severity });
+      if (screenshot) {
+        await api.upload(`/projects/${projectId}/qa`, screenshot, { title, description, severity });
+      } else {
+        await api.post(`/projects/${projectId}/qa`, { title, description, severity });
+      }
       onCreated();
     } catch (err) {
       setError(err instanceof ApiRequestError ? err.message : el.app.error);
@@ -195,6 +230,16 @@ function NewReportForm({
             </option>
           ))}
         </select>
+      </div>
+
+      <div className="field">
+        <label htmlFor="qa-screenshot">{el.qa.screenshot}</label>
+        <input
+          id="qa-screenshot"
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          onChange={(e) => setScreenshot(e.target.files?.[0] ?? null)}
+        />
       </div>
 
       {error && <div className="field-error">{error}</div>}

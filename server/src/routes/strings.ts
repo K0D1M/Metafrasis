@@ -113,6 +113,23 @@ stringsRouter.put('/strings/:stringId/translation', requireProjectRole(), async 
   res.status(204).end();
 });
 
+/** Επιβεβαίωση ελέγχου χωρίς αλλαγή στη μετάφραση — π.χ. ο μεταφραστής είδε το
+ * νέο πρωτότυπο και αποφασίζει ότι η υπάρχουσα μετάφραση παραμένει σωστή. */
+stringsRouter.patch('/strings/:stringId/review', requireProjectRole(), async (req, res) => {
+  const target = await stringInProject(req.params.stringId!, req.params.projectId!);
+  if (!target) {
+    res.status(404).json({ error: 'Το κείμενο δεν βρέθηκε' });
+    return;
+  }
+
+  await prisma.sourceString.update({
+    where: { id: target.id },
+    data: { needsReview: false },
+  });
+
+  res.status(204).end();
+});
+
 /* ── Σχόλια και απαντήσεις ─────────────────────────────────────────────────── */
 
 /** Χτίζει το δέντρο συζήτησης από μια επίπεδη λίστα, με μία διαδρομή. */

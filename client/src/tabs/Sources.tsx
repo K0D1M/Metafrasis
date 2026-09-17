@@ -334,6 +334,7 @@ export function SourcesTab({
                         <th>{el.sources.revision}</th>
                         <th style={{ minWidth: 140 }}>{el.dashboard.progress}</th>
                         <th className="hide-narrow">{el.members.memberSince}</th>
+                        <th className="hide-narrow">{el.sources.updatedByHeader}</th>
                         <th />
                       </tr>
                     </thead>
@@ -358,6 +359,12 @@ export function SourcesTab({
                             </span>
                           </td>
                           <td className="hide-narrow muted">{formatDate(file.updatedAt)}</td>
+                          <td className="hide-narrow muted">
+                            {el.sources.updatedBy(
+                              file.updatedBy?.username ?? '—',
+                              formatDate(file.updatedAt),
+                            )}
+                          </td>
                           <td>
                             {isManager && (
                               <div className="row" style={{ justifyContent: 'flex-end', alignItems: 'center' }}>

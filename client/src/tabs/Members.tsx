@@ -44,7 +44,7 @@ export function MembersTab({ project }: { project: ProjectDetail }) {
           <thead>
             <tr>
               <th>{el.auth.username}</th>
-              <th className="hide-narrow">{el.members.email}</th>
+              {isManager && <th className="hide-narrow">{el.members.email}</th>}
               <th>{el.members.role}</th>
               <th>{el.members.memberSince}</th>
               {isManager && <th />}
@@ -63,7 +63,7 @@ export function MembersTab({ project }: { project: ProjectDetail }) {
                     {member.username}
                   </div>
                 </td>
-                <td className="hide-narrow muted">{member.email}</td>
+                {isManager && <td className="hide-narrow muted">{member.email}</td>}
                 <td>
                   <span className="badge">{roleLabels[member.role]}</span>
                 </td>

@@ -121,12 +121,16 @@ projectsRouter.get('/:projectId/members', requireProjectRole(), async (req, res)
     orderBy: { joinedAt: 'asc' },
   });
 
+  // Το email είναι προσωπικό στοιχείο — το βλέπουν μόνο οι διαχειριστές του project,
+  // όχι όλα τα μέλη μεταξύ τους.
+  const isManager = req.projectRole === Role.MANAGER;
+
   res.json(
     members.map(
       (m): MemberView => ({
         userId: m.user.id,
         username: m.user.username,
-        email: m.user.email,
+        email: isManager ? m.user.email : null,
         avatarUrl: m.user.avatarUrl,
         role: m.role as Role,
         joinedAt: m.joinedAt.toISOString(),

@@ -115,6 +115,8 @@ export const el = {
     confirmDelete: (name: string) => `Να διαγραφεί το «${name}» και όλες οι μεταφράσεις του;`,
     updated: (added: number, changed: number, removed: number) =>
       `Ενημερώθηκε: ${added} νέα, ${changed} άλλαξαν, ${removed} αφαιρέθηκαν`,
+    updatedByHeader: 'Ενημερώθηκε από',
+    updatedBy: (member: string, timestamp: string) => `Ενημερώθηκε από ${member} στις ${timestamp}`,
   },
 
   editor: {
@@ -123,6 +125,7 @@ export const el = {
     key: 'Κλειδί',
     needsReview: 'Χρειάζεται έλεγχος',
     needsReviewHint: 'Το πρωτότυπο άλλαξε μετά την τελευταία μετάφραση',
+    confirmReview: 'Επιβεβαίωση ελέγχου',
     saved: 'Αποθηκεύτηκε',
     placeholder: 'Γράψε τη μετάφραση…',
     back: 'Πίσω στις Πηγές',
@@ -206,6 +209,7 @@ export const el = {
     reportTitle: 'Τίτλος',
     description: 'Περιγραφή',
     severity: 'Σοβαρότητα',
+    screenshot: 'Στιγμιότυπο (προαιρετικό)',
     status: 'Κατάσταση',
     open: 'Ανοιχτή',
     resolved: 'Επιλυμένη',

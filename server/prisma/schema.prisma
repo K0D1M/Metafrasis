@@ -272,6 +272,12 @@ model QaReport {
   createdAt    DateTime  @default(now())
   resolvedAt   DateTime?
 
+  /// Προαιρετικό στιγμιότυπο επισυναπτόμενο στην αναφορά — ίδιο μοτίβο με το Screenshot.
+  screenshotStoredName   String?
+  screenshotOriginalName String?
+  screenshotMimeType     String?
+  screenshotSizeBytes    Int?
+
   project    Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   string     SourceString? @relation(fields: [stringId], references: [id], onDelete: SetNull)
   author     User          @relation("QaAuthor", fields: [authorId], references: [id], onDelete: Cascade)
