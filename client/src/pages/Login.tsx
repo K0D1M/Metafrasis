@@ -95,6 +95,10 @@ export function Login() {
           </Link>
         </p>
       </form>
+
+      <p className="muted" style={{ fontSize: '0.75em', textAlign: 'center', marginTop: '2rem' }}>
+        {el.app.iconCredit}
+      </p>
     </div>
   );
 }
