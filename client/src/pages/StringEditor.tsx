@@ -228,7 +228,10 @@ function StringRow({
   }
 
   return (
-    <div style={{ borderBottom: '1px solid var(--border)', padding: '0.75rem 1rem' }}>
+    <div
+      className={`string-row${item.skipped ? ' ignored' : ''}`}
+      style={{ borderBottom: '1px solid var(--border)', padding: '0.75rem 1rem' }}
+    >
       <div className="spread" style={{ marginBottom: '0.4rem' }}>
         <div className="row" style={{ gap: '0.5rem' }}>
           <span className="muted" style={{ fontSize: '0.82em', minWidth: '2ch', textAlign: 'end' }}>
@@ -256,7 +259,7 @@ function StringRow({
             </>
           )}
           {status === 'saved' && <span className="badge">{el.editor.saved}</span>}
-          {item.skipped && <span className="badge">{el.editor.skipped}</span>}
+          {item.skipped && <span className="badge ignored">{el.editor.skipped}</span>}
           <button
             type="button"
             className={item.skipped ? '' : 'ghost'}

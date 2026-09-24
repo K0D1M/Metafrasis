@@ -18,6 +18,8 @@
   --warning: #b7791f;
   --warning-bg: #fdf6e3;
   --danger: #d64545;
+  --ignored: #7c3aed;
+  --ignored-bg: #f3edff;
 
   --radius: 8px;
   --radius-sm: 5px;
@@ -43,6 +45,8 @@
     --warning: #e0b44a;
     --warning-bg: #2a2418;
     --danger: #f87171;
+    --ignored: #b69cff;
+    --ignored-bg: #231c33;
 
     --shadow: 0 1px 3px rgb(0 0 0 / 0.4), 0 4px 12px rgb(0 0 0 / 0.3);
 
@@ -66,6 +70,8 @@
   --warning: #e0b44a;
   --warning-bg: #2a2418;
   --danger: #f87171;
+  --ignored: #b69cff;
+  --ignored-bg: #231c33;
 
   --shadow: 0 1px 3px rgb(0 0 0 / 0.4), 0 4px 12px rgb(0 0 0 / 0.3);
 
@@ -262,6 +268,8 @@ tbody tr:last-child td { border-bottom: none; }
 }
 .badge.warning { background: var(--warning-bg); color: var(--warning); }
 .badge.success { background: var(--success-bg); color: var(--success); }
+.badge.ignored { background: var(--ignored-bg); color: var(--ignored); }
+.string-row.ignored { box-shadow: inset 3px 0 0 var(--ignored); }
 
 .mention { color: var(--accent); font-weight: 500; }
 
