@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   ActivityAction,
   saveTranslationSchema,
+  skipTranslationSchema,
   createCommentSchema,
   NotificationType,
   extractMentions,
@@ -67,6 +68,7 @@ stringsRouter.get('/files/:fileId/strings', requireProjectRole(), async (req, re
         needsReview: s.needsReview,
         removed: s.removed,
         translation: s.translations[0]?.text ?? null,
+        skipped: s.translations[0]?.skipped ?? false,
         commentCount: s._count.comments,
       }),
     ),
@@ -94,7 +96,8 @@ stringsRouter.put('/strings/:stringId/translation', requireProjectRole(), async 
     prisma.translation.upsert({
       where: { stringId_language: { stringId: target.id, language } },
       create: { stringId: target.id, language, text, authorId: req.userId! },
-      update: { text, authorId: req.userId! },
+      // Γραπτή μετάφραση αντικαθιστά τη σήμανση «δεν χρειάζεται μετάφραση».
+      update: { text, skipped: false, authorId: req.userId! },
     }),
     // Η αποθήκευση σημαίνει ότι ο μεταφραστής είδε το νέο πρωτότυπο.
     prisma.sourceString.update({
@@ -126,6 +129,43 @@ stringsRouter.patch('/strings/:stringId/review', requireProjectRole(), async (re
     where: { id: target.id },
     data: { needsReview: false },
   });
+
+  res.status(204).end();
+});
+
+/** «Δεν χρειάζεται μετάφραση», ανά γλώσσα. Αποθηκεύεται με κενό text ώστε η εξαγωγή
+ * να κρατά το πρωτότυπο· η αναίρεση σβήνει τη γραμμή, αφού δεν περιέχει μετάφραση. */
+stringsRouter.put('/strings/:stringId/skip', requireProjectRole(), async (req, res) => {
+  const parsed = skipTranslationSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Μη έγκυρα στοιχεία' });
+    return;
+  }
+
+  const target = await stringInProject(req.params.stringId!, req.params.projectId!);
+  if (!target) {
+    res.status(404).json({ error: 'Το κείμενο δεν βρέθηκε' });
+    return;
+  }
+
+  const { language, skipped } = parsed.data;
+  const where = { stringId_language: { stringId: target.id, language } };
+
+  if (skipped) {
+    await prisma.$transaction([
+      prisma.translation.upsert({
+        where,
+        create: { stringId: target.id, language, text: '', skipped: true, authorId: req.userId! },
+        update: { text: '', skipped: true, authorId: req.userId! },
+      }),
+      // Η σήμανση είναι απόφαση πάνω στο τρέχον πρωτότυπο — ισοδυναμεί με έλεγχο.
+      prisma.sourceString.update({ where: { id: target.id }, data: { needsReview: false } }),
+    ]);
+  } else {
+    await prisma.translation.deleteMany({
+      where: { stringId: target.id, language, skipped: true },
+    });
+  }
 
   res.status(204).end();
 });

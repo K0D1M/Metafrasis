@@ -14,6 +14,7 @@ import { prisma } from '../db.js';
 import { requireProjectRole } from '../auth.js';
 import { flatten, unflatten, type JsonValue } from '../services/jsonFlatten.js';
 import { attachmentHeader } from '../services/contentDisposition.js';
+import { progressByFile } from '../services/progress.js';
 
 export const translationsRouter: Router = Router({ mergeParams: true });
 
@@ -95,30 +96,21 @@ translationsRouter.get('/summary', requireProjectRole(), async (req, res) => {
 
   const language = (req.query.language as string) || primaryTarget(project.targetLanguages);
 
-  const files = await prisma.sourceFile.findMany({
-    where: { projectId },
-    orderBy: { name: 'asc' },
-    include: {
-      _count: { select: { strings: { where: { removed: false } } } },
-      strings: {
-        where: { removed: false },
-        select: { translations: { where: { language }, select: { text: true } } },
-      },
-    },
-  });
+  const [files, progress] = await Promise.all([
+    prisma.sourceFile.findMany({
+      where: { projectId },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true },
+    }),
+    progressByFile(projectId, language),
+  ]);
 
   res.json({
     language,
-    files: files.map((file) => {
-      const translated = file.strings.filter((s) => s.translations[0]?.text).length;
-      const total = file._count.strings;
-      return {
-        id: file.id,
-        name: file.name,
-        total,
-        translated,
-        percent: total === 0 ? 0 : Math.round((translated / total) * 100),
-      };
-    }),
+    files: files.map((file) => ({
+      id: file.id,
+      name: file.name,
+      ...(progress.get(file.id) ?? { total: 0, translated: 0, percent: 0 }),
+    })),
   });
 });

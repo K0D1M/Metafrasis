@@ -31,6 +31,13 @@ function isActuallyTranslated(text: string | null | undefined, language: string)
   return script ? script.test(text) : text.trim().length > 0;
 }
 
+/** Ίδιος κανόνας με το server/src/services/progress.ts: ένα «Χρειάζεται έλεγχος» δεν
+ * μετρά μέχρι να ελεγχθεί· ένα «δεν χρειάζεται μετάφραση» μετρά χωρίς κείμενο. */
+function isDone(item: SourceStringView, language: string): boolean {
+  if (item.needsReview) return false;
+  return item.skipped || isActuallyTranslated(item.translation, language);
+}
+
 export function StringEditor() {
   const { projectId, fileId } = useParams<{ projectId: string; fileId: string }>();
   const [data, setData] = useState<StringsResponse | null>(null);
@@ -50,7 +57,7 @@ export function StringEditor() {
   const visible = useMemo(() => {
     if (!data) return [];
     return onlyUntranslated
-      ? data.strings.filter((s) => !isActuallyTranslated(s.translation, data.language))
+      ? data.strings.filter((s) => !isDone(s, data.language))
       : data.strings;
   }, [data, onlyUntranslated]);
 
@@ -62,14 +69,12 @@ export function StringEditor() {
     overscan: 8,
   });
 
-  const updateLocal = useCallback((id: string, text: string) => {
+  const updateLocal = useCallback((id: string, patch: Partial<SourceStringView>) => {
     setData((current) =>
       current
         ? {
             ...current,
-            strings: current.strings.map((s) =>
-              s.id === id ? { ...s, translation: text, needsReview: false } : s,
-            ),
+            strings: current.strings.map((s) => (s.id === id ? { ...s, ...patch } : s)),
           }
         : current,
     );
@@ -83,7 +88,7 @@ export function StringEditor() {
       </div>
     );
 
-  const translated = data.strings.filter((s) => isActuallyTranslated(s.translation, data.language)).length;
+  const translated = data.strings.filter((s) => isDone(s, data.language)).length;
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '1.5rem 1rem' }}>
@@ -163,7 +168,7 @@ function StringRow({
   index: number;
   item: SourceStringView;
   language: string;
-  onSaved: (id: string, text: string) => void;
+  onSaved: (id: string, patch: Partial<SourceStringView>) => void;
   expanded: boolean;
   onToggleComments: () => void;
 }) {
@@ -179,7 +184,7 @@ function StringRow({
     setStatus('saving');
     try {
       await api.put(`/projects/${projectId}/strings/${item.id}/translation`, { text, language });
-      onSaved(item.id, text);
+      onSaved(item.id, { translation: text, needsReview: false, skipped: false });
       setStatus('saved');
       setTimeout(() => setStatus('idle'), 1500);
     } catch {
@@ -202,9 +207,23 @@ function StringRow({
   async function confirmReviewed() {
     try {
       await api.patch(`/projects/${projectId}/strings/${item.id}/review`);
-      onSaved(item.id, text);
+      onSaved(item.id, { needsReview: false });
     } catch {
       // Αν αποτύχει, το badge παραμένει — ο χρήστης μπορεί να ξαναδοκιμάσει.
+    }
+  }
+
+  async function toggleSkipped() {
+    const skipped = !item.skipped;
+    try {
+      await api.put(`/projects/${projectId}/strings/${item.id}/skip`, { language, skipped });
+      setText('');
+      onSaved(
+        item.id,
+        skipped ? { skipped, translation: '', needsReview: false } : { skipped, translation: null },
+      );
+    } catch {
+      // Η κατάσταση μένει ως είχε — ο χρήστης μπορεί να ξαναδοκιμάσει.
     }
   }
 
@@ -237,6 +256,15 @@ function StringRow({
             </>
           )}
           {status === 'saved' && <span className="badge">{el.editor.saved}</span>}
+          {item.skipped && <span className="badge">{el.editor.skipped}</span>}
+          <button
+            type="button"
+            className={item.skipped ? '' : 'ghost'}
+            onClick={() => void toggleSkipped()}
+            title={item.skipped ? el.editor.unskipHint : el.editor.skipHint}
+          >
+            {item.skipped ? el.editor.unskip : el.editor.skip}
+          </button>
           <button className="ghost" onClick={onToggleComments}>
             {el.editor.comments}
             {item.commentCount > 0 ? ` (${item.commentCount})` : ''}
@@ -276,7 +304,7 @@ function StringRow({
             value={text}
             onChange={(e) => setText(e.target.value)}
             onBlur={() => void save()}
-            placeholder={el.editor.placeholder}
+            placeholder={item.skipped ? el.editor.skippedPlaceholder : el.editor.placeholder}
             style={{ minHeight: 44 }}
           />
         </div>

@@ -150,6 +150,8 @@ export interface SourceStringView {
   needsReview: boolean;
   removed: boolean;
   translation: string | null;
+  /** Σημασμένο «δεν χρειάζεται μετάφραση» για αυτή τη γλώσσα. */
+  skipped: boolean;
   commentCount: number;
 }
 
@@ -158,6 +160,11 @@ export const saveTranslationSchema = z.object({
   language: z.string().min(2),
 });
 export type SaveTranslationInput = z.infer<typeof saveTranslationSchema>;
+
+export const skipTranslationSchema = z.object({
+  language: z.string().min(2),
+  skipped: z.boolean(),
+});
 
 /* ── Σχόλια ────────────────────────────────────────────────────────────────── */
 

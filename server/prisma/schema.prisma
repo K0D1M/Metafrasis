@@ -165,6 +165,8 @@ model Translation {
   stringId  String
   language  String
   text      String
+  /// «Δεν χρειάζεται μετάφραση»: μετρά ως ολοκληρωμένο με κενό text, οπότε η εξαγωγή κρατά το πρωτότυπο.
+  skipped   Boolean  @default(false)
   authorId  String
   updatedAt DateTime @updatedAt
 
