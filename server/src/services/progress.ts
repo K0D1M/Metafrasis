@@ -22,12 +22,12 @@ export function computeProgress(total: number, translated: number): ProgressStat
  * LANGUAGE_SCRIPTS στο client/src/pages/StringEditor.tsx — κρατάμε τα δύο σε
  * αντιστοιχία αν προστεθεί νέα γλώσσα.
  */
-const LANGUAGE_SCRIPT_PATTERN: Record<string, string> = {
+export const LANGUAGE_SCRIPT_PATTERN: Record<string, string> = {
   el: '[Ͱ-Ͽἀ-῿]',
   en: '[a-zA-Z]',
 };
 
-function scriptPattern(language: string): string {
+export function scriptPattern(language: string): string {
   return LANGUAGE_SCRIPT_PATTERN[language] ?? '.'; // Άγνωστη γλώσσα: αρκεί οποιοσδήποτε χαρακτήρας.
 }
 

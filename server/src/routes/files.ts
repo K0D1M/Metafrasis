@@ -10,6 +10,7 @@ import { requireProjectRole } from '../auth.js';
 import { parseJsonUpload, planIngest } from '../services/ingest.js';
 import { startJob, updateJob, finishJob, getJobsForProject } from '../services/uploadJobs.js';
 import { progressByFile } from '../services/progress.js';
+import { adoptPretranslated } from '../services/pretranslated.js';
 import { flatten, unflatten, type JsonValue } from '../services/jsonFlatten.js';
 import { logActivity } from '../services/activity.js';
 import { notifyMany } from '../services/notify.js';
@@ -182,6 +183,14 @@ async function ingestUpload(params: {
       }),
     ),
   ]);
+
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { targetLanguages: true },
+  });
+  for (const language of JSON.parse(project?.targetLanguages ?? '[]') as string[]) {
+    await adoptPretranslated(file.id, language, userId);
+  }
 
   return {
     fileId: file.id,
