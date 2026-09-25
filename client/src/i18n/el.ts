@@ -124,6 +124,9 @@ export const el = {
   },
 
   editor: {
+    searchPlaceholder: 'Αναζήτηση σε κλειδί, πρωτότυπο ή μετάφραση…',
+    searchClear: 'Καθαρισμός αναζήτησης',
+    searchResults: (n: number) => (n === 1 ? '1 αποτέλεσμα' : `${n} αποτελέσματα`),
     source: 'Πρωτότυπο',
     target: 'Μετάφραση',
     key: 'Κλειδί',

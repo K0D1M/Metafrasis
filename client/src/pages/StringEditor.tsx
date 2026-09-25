@@ -43,7 +43,16 @@ export function StringEditor() {
   const [data, setData] = useState<StringsResponse | null>(null);
   const [onlyUntranslated, setOnlyUntranslated] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  const [searchInput, setSearchInput] = useState('');
+  const [query, setQuery] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Απόσβεση: με 20.000+ κείμενα σε ένα αρχείο, φιλτράρισμα σε κάθε πάτημα πλήκτρου
+  // θα ξανάτρεχε τον virtualizer πολύ συχνά. 150ms αρκεί ώστε να μη νιώθει καθυστέρηση.
+  useEffect(() => {
+    const timeout = setTimeout(() => setQuery(searchInput.trim().toLowerCase()), 150);
+    return () => clearTimeout(timeout);
+  }, [searchInput]);
 
   useEffect(() => {
     if (projectId && fileId) {
@@ -56,10 +65,19 @@ export function StringEditor() {
 
   const visible = useMemo(() => {
     if (!data) return [];
-    return onlyUntranslated
+    let result = onlyUntranslated
       ? data.strings.filter((s) => !isDone(s, data.language))
       : data.strings;
-  }, [data, onlyUntranslated]);
+    if (query) {
+      result = result.filter(
+        (s) =>
+          s.key.toLowerCase().includes(query) ||
+          s.sourceText.toLowerCase().includes(query) ||
+          (s.translation ?? '').toLowerCase().includes(query),
+      );
+    }
+    return result;
+  }, [data, onlyUntranslated, query]);
 
   // Εικονικοποίηση: ένα αρχείο με 10.000 κείμενα δεν πρέπει να παγώνει τη σελίδα.
   const virtualizer = useVirtualizer({
@@ -103,6 +121,28 @@ export function StringEditor() {
           </span>
         </div>
         <div className="row">
+          <div className="row" style={{ position: 'relative' }}>
+            <input
+              type="search"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder={el.editor.searchPlaceholder}
+              style={{ minWidth: 220, paddingRight: searchInput ? '2rem' : undefined }}
+              aria-label={el.editor.searchPlaceholder}
+            />
+            {searchInput && (
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => setSearchInput('')}
+                title={el.editor.searchClear}
+                aria-label={el.editor.searchClear}
+                style={{ position: 'absolute', right: 0, padding: '0 0.5rem' }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
           <button
             className={onlyUntranslated ? 'primary' : ''}
             onClick={() => setOnlyUntranslated((v) => !v)}
@@ -112,6 +152,12 @@ export function StringEditor() {
           <ThemeToggle />
         </div>
       </div>
+
+      {query && (
+        <div className="muted" style={{ marginBottom: '0.75rem', fontSize: '0.9em' }}>
+          {el.editor.searchResults(visible.length)}
+        </div>
+      )}
 
       <div
         ref={scrollRef}
