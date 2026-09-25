@@ -51,7 +51,10 @@ stringsRouter.get('/files/:fileId/strings', requireProjectRole(), async (req, re
     where: { fileId: file.id, removed: false },
     orderBy: { order: 'asc' },
     include: {
-      translations: { where: { language } },
+      translations: {
+        where: { language },
+        include: { author: { select: { username: true, avatarUrl: true } } },
+      },
       _count: { select: { comments: true } },
     },
   });
@@ -69,6 +72,8 @@ stringsRouter.get('/files/:fileId/strings', requireProjectRole(), async (req, re
         removed: s.removed,
         translation: s.translations[0]?.text ?? null,
         skipped: s.translations[0]?.skipped ?? false,
+        translatedAt: s.translations[0]?.updatedAt.toISOString() ?? null,
+        translatedBy: s.translations[0]?.author ?? null,
         commentCount: s._count.comments,
       }),
     ),

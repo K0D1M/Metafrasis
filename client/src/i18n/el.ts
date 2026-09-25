@@ -23,6 +23,9 @@ export const el = {
     changeAvatar: 'Αλλαγή avatar',
     removeAvatar: 'Αφαίρεση avatar',
     usernameLocked: 'Το όνομα χρήστη το αλλάζει μόνο ο διαχειριστής',
+    recentCount: 'Κείμενα στο «Μεταφράστηκε τελευταία»',
+    recentCountHint: (min: number, max: number) => `Από ${min} έως ${max}.`,
+    recentCountInvalid: (min: number, max: number) => `Δώσε έναν ακέραιο από ${min} έως ${max}.`,
     invalidType: 'Επιτρέπονται μόνο εικόνες PNG, JPEG, WebP ή GIF',
     saved: 'Το avatar ενημερώθηκε',
   },
@@ -124,6 +127,9 @@ export const el = {
   },
 
   editor: {
+    recent: 'Μεταφράστηκε τελευταία',
+    recentEmpty: 'Δεν υπάρχουν ακόμα μεταφράσεις σε αυτό το αρχείο.',
+    recentClose: 'Κλείσιμο',
     searchPlaceholder: 'Αναζήτηση σε κλειδί, πρωτότυπο ή μετάφραση…',
     searchClear: 'Καθαρισμός αναζήτησης',
     searchResults: (n: number) => (n === 1 ? '1 αποτέλεσμα' : `${n} αποτελέσματα`),

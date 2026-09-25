@@ -52,6 +52,14 @@ function applyPatch(items: Item[], id: string, patch: Partial<Item>, language: s
   });
 }
 
+/** Ίδια με τα onRowFocus / onRowBlur του StringEditor. */
+function onFocus(grace: Map<string, number>, id: string) {
+  if (grace.has(id)) grace.set(id, Infinity);
+}
+function onBlur(grace: Map<string, number>, id: string, now: number) {
+  if (grace.has(id)) grace.set(id, now + GRACE_MS);
+}
+
 describe('χρόνος χάριτος στη λίστα «Μη μεταφρασμένα»', () => {
   const base: Item[] = [
     { id: 'a', translation: null, skipped: false, needsReview: false },
@@ -79,15 +87,25 @@ describe('χρόνος χάριτος στη λίστα «Μη μεταφρασ�
     expect(untranslatedView(after, 'el', grace, t0 + GRACE_MS).map((s) => s.id)).toEqual(['b']);
   });
 
-  it('διόρθωση μέσα στη χάρη το κρατά ορατό, με νέα προθεσμία', () => {
+  it('όσο το πεδίο έχει εστίαση η χάρη παγώνει, και ξεκινά από την αρχή στο blur', () => {
     const grace = new Map<string, number>();
     const t0 = 1_000_000;
     let items = applyPatch(base, 'a', { translation: 'Γεια' }, 'el', grace, t0);
-    // Ο μεταφραστής διορθώνει 5 δευτερόλεπτα αργότερα — παραμένει done, η χάρη δεν ανανεώνεται
-    // (δεν υπάρχει μετάβαση not-done -> done), αλλά δεν χάνεται κιόλας πριν την αρχική λήξη.
-    items = applyPatch(items, 'a', { translation: 'Γεια σου' }, 'el', grace, t0 + 5_000);
-    expect(untranslatedView(items, 'el', grace, t0 + 6_000).map((s) => s.id)).toEqual(['a', 'b']);
-    expect(untranslatedView(items, 'el', grace, t0 + GRACE_MS).map((s) => s.id)).toEqual(['b']);
+    // Ο μεταφραστής ξαναμπαίνει στο πεδίο στα 10s και γράφει για 30s.
+    onFocus(grace, 'a');
+    expect(untranslatedView(items, 'el', grace, t0 + 40_000).map((s) => s.id)).toEqual(['a', 'b']);
+    // Βγαίνει στα 40s: νέα πλήρης προθεσμία από εκεί.
+    items = applyPatch(items, 'a', { translation: 'Γεια σου' }, 'el', grace, t0 + 40_000);
+    onBlur(grace, 'a', t0 + 40_000);
+    expect(untranslatedView(items, 'el', grace, t0 + 40_000 + GRACE_MS - 1).map((s) => s.id)).toEqual(['a', 'b']);
+    expect(untranslatedView(items, 'el', grace, t0 + 40_000 + GRACE_MS).map((s) => s.id)).toEqual(['b']);
+  });
+
+  it('εστίαση σε κείμενο εκτός χάριτος δεν το προσθέτει στη χάρη', () => {
+    const grace = new Map<string, number>();
+    onFocus(grace, 'a');
+    onBlur(grace, 'a', 1_000_000);
+    expect(grace.has('a')).toBe(false);
   });
 
   it('αν σβηστεί ξανά η μετάφραση, το κείμενο επιστρέφει κανονικά στη λίστα χωρίς χάρη', () => {

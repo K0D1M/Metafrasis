@@ -71,7 +71,16 @@ export interface SessionUser {
   username: string;
   avatarUrl: string | null;
   isAdmin: boolean;
+  /** Πόσα κείμενα δείχνει το πάνελ «Μεταφράστηκε τελευταία». */
+  recentTranslationsCount: number;
 }
+
+export const RECENT_TRANSLATIONS_MIN = 1;
+export const RECENT_TRANSLATIONS_MAX = 100;
+
+export const preferencesSchema = z.object({
+  recentTranslationsCount: z.number().int().min(RECENT_TRANSLATIONS_MIN).max(RECENT_TRANSLATIONS_MAX),
+});
 
 /* ── Projects ──────────────────────────────────────────────────────────────── */
 
@@ -152,6 +161,9 @@ export interface SourceStringView {
   translation: string | null;
   /** Σημασμένο «δεν χρειάζεται μετάφραση» για αυτή τη γλώσσα. */
   skipped: boolean;
+  /** Πότε και από ποιον αποθηκεύτηκε τελευταία η μετάφραση — null αν δεν υπάρχει. */
+  translatedAt: string | null;
+  translatedBy: { username: string; avatarUrl: string | null } | null;
   commentCount: number;
 }
 

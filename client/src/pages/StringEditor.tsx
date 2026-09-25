@@ -8,6 +8,7 @@ import { api } from '../lib/api.js';
 import { Avatar, ThemeToggle, formatDate } from '../components/common.js';
 import { MentionTextarea } from '../components/MentionTextarea.js';
 import { renderWithMentions } from '../lib/mentions.js';
+import { useAuth } from '../lib/auth.js';
 
 interface StringsResponse {
   fileName: string;
@@ -115,6 +116,58 @@ export function StringEditor() {
     overscan: 8,
   });
 
+  const { user } = useAuth();
+  const [showRecent, setShowRecent] = useState(false);
+  const recentLimit = user?.recentTranslationsCount ?? 10;
+
+  // Οι πιο πρόσφατες μεταφράσεις του αρχείου, από οποιοδήποτε μέλος. Μόνο γραμμές με
+  // πραγματικό κείμενο — ένα «Χωρίς μετάφραση» δεν είναι μετάφραση για να ξαναδεί κανείς.
+  const recent = useMemo(() => {
+    if (!data) return [];
+    return data.strings
+      .filter((s) => s.translatedAt && s.translation && s.translation.trim())
+      .sort((a, b) => (b.translatedAt ?? '').localeCompare(a.translatedAt ?? ''))
+      .slice(0, recentLimit);
+  }, [data, recentLimit]);
+
+  // Μετάβαση σε κείμενο από το πάνελ. Αν τα φίλτρα το κρύβουν, τα καθαρίζουμε πρώτα και
+  // κάνουμε το scroll στο επόμενο render, αφού ξαναϋπολογιστεί το visible.
+  const [jumpTarget, setJumpTarget] = useState<string | null>(null);
+  const [highlighted, setHighlighted] = useState<string | null>(null);
+
+  function jumpTo(id: string) {
+    if (!visible.some((s) => s.id === id)) {
+      setOnlyUntranslated(false);
+      setSearchInput('');
+      setQuery('');
+    }
+    setJumpTarget(id);
+  }
+
+  useEffect(() => {
+    if (!jumpTarget) return;
+    const index = visible.findIndex((s) => s.id === jumpTarget);
+    if (index === -1) return;
+    virtualizer.scrollToIndex(index, { align: 'center' });
+    setHighlighted(jumpTarget);
+    setJumpTarget(null);
+    const timeout = setTimeout(() => setHighlighted(null), 2000);
+    return () => clearTimeout(timeout);
+  }, [jumpTarget, visible, virtualizer]);
+
+  // Όσο ο μεταφραστής γράφει σε ένα κείμενο που είναι σε χρόνο χάριτος, η χάρη παγώνει
+  // (Infinity)· ξεκινά από την αρχή μόλις βγει από το πεδίο.
+  const onRowFocus = useCallback((id: string) => {
+    if (recentlyCompletedRef.current.has(id)) recentlyCompletedRef.current.set(id, Infinity);
+  }, []);
+
+  const onRowBlur = useCallback((id: string) => {
+    if (recentlyCompletedRef.current.has(id)) {
+      recentlyCompletedRef.current.set(id, Date.now() + UNTRANSLATED_GRACE_MS);
+      setGraceTick((t) => t + 1);
+    }
+  }, []);
+
   const updateLocal = useCallback((id: string, patch: Partial<SourceStringView>) => {
     setData((current) => {
       if (!current) return current;
@@ -187,6 +240,9 @@ export function StringEditor() {
           >
             {onlyUntranslated ? el.editor.all : el.editor.untranslated}
           </button>
+          <button className={showRecent ? 'primary' : ''} onClick={() => setShowRecent((v) => !v)}>
+            {el.editor.recent}
+          </button>
           <ThemeToggle />
         </div>
       </div>
@@ -197,10 +253,11 @@ export function StringEditor() {
         </div>
       )}
 
+      <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
       <div
         ref={scrollRef}
         className="card"
-        style={{ padding: 0, height: 'calc(100vh - 200px)', overflowY: 'auto' }}
+        style={{ padding: 0, height: 'calc(100vh - 200px)', overflowY: 'auto', flex: 1, minWidth: 0 }}
       >
         <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
           {virtualizer.getVirtualItems().map((row) => {
@@ -217,6 +274,8 @@ export function StringEditor() {
                   left: 0,
                   width: '100%',
                   transform: `translateY(${row.start}px)`,
+                  outline: highlighted === item.id ? '2px solid var(--accent)' : undefined,
+                  outlineOffset: -2,
                 }}
               >
                 <StringRow
@@ -225,6 +284,8 @@ export function StringEditor() {
                   item={item}
                   language={data.language}
                   onSaved={updateLocal}
+                  onFocusRow={onRowFocus}
+                  onBlurRow={onRowBlur}
                   expanded={selected === item.id}
                   onToggleComments={() =>
                     setSelected((current) => (current === item.id ? null : item.id))
@@ -234,6 +295,65 @@ export function StringEditor() {
             );
           })}
         </div>
+      </div>
+
+      {showRecent && (
+        <aside
+          className="card"
+          style={{ width: 320, flexShrink: 0, height: 'calc(100vh - 200px)', overflowY: 'auto', padding: '0.75rem' }}
+          aria-label={el.editor.recent}
+        >
+          <div className="spread" style={{ marginBottom: '0.5rem' }}>
+            <strong>{el.editor.recent}</strong>
+            <button
+              className="ghost"
+              onClick={() => setShowRecent(false)}
+              title={el.editor.recentClose}
+              aria-label={el.editor.recentClose}
+            >
+              ✕
+            </button>
+          </div>
+          {recent.length === 0 ? (
+            <div className="muted">{el.editor.recentEmpty}</div>
+          ) : (
+            <div className="stack" style={{ gap: '0.4rem' }}>
+              {recent.map((s) => (
+                <button
+                  key={s.id}
+                  className="ghost"
+                  onClick={() => jumpTo(s.id)}
+                  style={{ textAlign: 'start', display: 'block', width: '100%', padding: '0.5rem' }}
+                >
+                  <code className="muted" style={{ fontSize: '0.78em', wordBreak: 'break-all' }}>
+                    {s.key}
+                  </code>
+                  <div
+                    style={{
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      margin: '0.15rem 0',
+                    }}
+                  >
+                    {s.translation}
+                  </div>
+                  <div className="row muted" style={{ fontSize: '0.78em', gap: '0.35rem' }}>
+                    {s.translatedBy && (
+                      <Avatar
+                        username={s.translatedBy.username}
+                        avatarUrl={s.translatedBy.avatarUrl}
+                        size={18}
+                      />
+                    )}
+                    {s.translatedBy?.username} · {s.translatedAt && formatDate(s.translatedAt)}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </aside>
+      )}
       </div>
     </div>
   );
@@ -245,6 +365,8 @@ function StringRow({
   item,
   language,
   onSaved,
+  onFocusRow,
+  onBlurRow,
   expanded,
   onToggleComments,
 }: {
@@ -253,9 +375,12 @@ function StringRow({
   item: SourceStringView;
   language: string;
   onSaved: (id: string, patch: Partial<SourceStringView>) => void;
+  onFocusRow: (id: string) => void;
+  onBlurRow: (id: string) => void;
   expanded: boolean;
   onToggleComments: () => void;
 }) {
+  const { user } = useAuth();
   const [text, setText] = useState(item.translation ?? '');
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [copied, setCopied] = useState(false);
@@ -268,7 +393,13 @@ function StringRow({
     setStatus('saving');
     try {
       await api.put(`/projects/${projectId}/strings/${item.id}/translation`, { text, language });
-      onSaved(item.id, { translation: text, needsReview: false, skipped: false });
+      onSaved(item.id, {
+        translation: text,
+        needsReview: false,
+        skipped: false,
+        translatedAt: new Date().toISOString(),
+        translatedBy: user ? { username: user.username, avatarUrl: user.avatarUrl } : item.translatedBy,
+      });
       setStatus('saved');
       setTimeout(() => setStatus('idle'), 1500);
     } catch {
@@ -390,7 +521,11 @@ function StringRow({
             id={`t-${item.id}`}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            onBlur={() => void save()}
+            onFocus={() => onFocusRow(item.id)}
+            onBlur={() => {
+              onBlurRow(item.id);
+              void save();
+            }}
             placeholder={item.skipped ? el.editor.skippedPlaceholder : el.editor.placeholder}
             style={{ minHeight: 44 }}
           />

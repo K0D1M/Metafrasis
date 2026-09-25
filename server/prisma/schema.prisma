@@ -31,6 +31,8 @@ model User {
   /// Μη μηδενικό: ο λογαριασμός είναι απενεργοποιημένος — δεν μπορεί να συνδεθεί, τα
   /// δεδομένα του παραμένουν, αλλά το username εμφανίζεται ως "deactivated_user_<id>".
   deactivatedAt DateTime?
+  /// Πόσα κείμενα δείχνει το πάνελ «Μεταφράστηκε τελευταία» — προσωπική ρύθμιση.
+  recentTranslationsCount Int @default(10)
 
   memberships    ProjectMember[]
   translations   Translation[]

@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import {
   ActivityAction,
   loginSchema,
+  preferencesSchema,
   registerSchema,
   requestPasswordResetSchema,
   resetPasswordSchema,
@@ -34,6 +35,7 @@ function toSessionUser(user: {
   username: string;
   avatarUrl: string | null;
   isAdmin: boolean;
+  recentTranslationsCount: number;
 }): SessionUser {
   return {
     id: user.id,
@@ -41,6 +43,7 @@ function toSessionUser(user: {
     username: user.username,
     avatarUrl: user.avatarUrl,
     isAdmin: user.isAdmin,
+    recentTranslationsCount: user.recentTranslationsCount,
   };
 }
 
@@ -234,6 +237,20 @@ authRouter.patch('/me/avatar', requireAuth, async (req, res) => {
   const user = await prisma.user.update({
     where: { id: req.userId! },
     data: { avatarUrl: raw },
+  });
+  res.json(toSessionUser(user));
+});
+
+/** Προσωπικές ρυθμίσεις του χρήστη (π.χ. μέγεθος λίστας «Μεταφράστηκε τελευταία»). */
+authRouter.patch('/me/preferences', requireAuth, async (req, res) => {
+  const parsed = preferencesSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Μη έγκυρη τιμή ρύθμισης' });
+    return;
+  }
+  const user = await prisma.user.update({
+    where: { id: req.userId! },
+    data: { recentTranslationsCount: parsed.data.recentTranslationsCount },
   });
   res.json(toSessionUser(user));
 });
