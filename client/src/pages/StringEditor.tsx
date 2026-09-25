@@ -118,17 +118,19 @@ export function StringEditor() {
 
   const { user } = useAuth();
   const [showRecent, setShowRecent] = useState(false);
-  const recentLimit = user?.recentTranslationsCount ?? 10;
+  const recentPageSize = user?.recentTranslationsCount ?? 10;
+  // Πόσες «σελίδες» έχει φορτώσει ο χρήστης με το «Φόρτωση περισσότερων».
+  const [recentPages, setRecentPages] = useState(1);
 
   // Οι πιο πρόσφατες μεταφράσεις του αρχείου, από οποιοδήποτε μέλος. Μόνο γραμμές με
   // πραγματικό κείμενο — ένα «Χωρίς μετάφραση» δεν είναι μετάφραση για να ξαναδεί κανείς.
-  const recent = useMemo(() => {
+  const allRecent = useMemo(() => {
     if (!data) return [];
     return data.strings
       .filter((s) => s.translatedAt && s.translation && s.translation.trim())
-      .sort((a, b) => (b.translatedAt ?? '').localeCompare(a.translatedAt ?? ''))
-      .slice(0, recentLimit);
-  }, [data, recentLimit]);
+      .sort((a, b) => (b.translatedAt ?? '').localeCompare(a.translatedAt ?? ''));
+  }, [data]);
+  const recent = allRecent.slice(0, recentPageSize * recentPages);
 
   // Μετάβαση σε κείμενο από το πάνελ. Αν τα φίλτρα το κρύβουν, τα καθαρίζουμε πρώτα και
   // κάνουμε το scroll στο επόμενο render, αφού ξαναϋπολογιστεί το visible.
@@ -240,7 +242,13 @@ export function StringEditor() {
           >
             {onlyUntranslated ? el.editor.all : el.editor.untranslated}
           </button>
-          <button className={showRecent ? 'primary' : ''} onClick={() => setShowRecent((v) => !v)}>
+          <button
+            className={showRecent ? 'primary' : ''}
+            onClick={() => {
+              setShowRecent((v) => !v);
+              setRecentPages(1);
+            }}
+          >
             {el.editor.recent}
           </button>
           <ThemeToggle />
@@ -350,6 +358,11 @@ export function StringEditor() {
                   </div>
                 </button>
               ))}
+              {recent.length < allRecent.length && (
+                <button onClick={() => setRecentPages((p) => p + 1)} style={{ width: '100%' }}>
+                  {el.editor.recentLoadMore}
+                </button>
+              )}
             </div>
           )}
         </aside>

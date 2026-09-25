@@ -130,6 +130,7 @@ export const el = {
     recent: 'Μεταφράστηκε τελευταία',
     recentEmpty: 'Δεν υπάρχουν ακόμα μεταφράσεις σε αυτό το αρχείο.',
     recentClose: 'Κλείσιμο',
+    recentLoadMore: 'Φόρτωση περισσότερων',
     searchPlaceholder: 'Αναζήτηση σε κλειδί, πρωτότυπο ή μετάφραση…',
     searchClear: 'Καθαρισμός αναζήτησης',
     searchResults: (n: number) => (n === 1 ? '1 αποτέλεσμα' : `${n} αποτελέσματα`),
