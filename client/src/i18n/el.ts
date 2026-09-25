@@ -6,6 +6,9 @@ export const el = {
   app: {
     name: 'Μετάφρασις',
     iconCredit: 'Εικονίδιο: Loritas Medina, Noun Project',
+    updateAvailable: 'Νέα έκδοση διαθέσιμη',
+    updateReload: 'Ανανέωση',
+    updateLater: 'Αργότερα',
     loading: 'Φόρτωση…',
     save: 'Αποθήκευση',
     cancel: 'Άκυρο',
