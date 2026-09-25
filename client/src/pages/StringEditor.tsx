@@ -38,6 +38,12 @@ function isDone(item: SourceStringView, language: string): boolean {
   return item.skipped || isActuallyTranslated(item.translation, language);
 }
 
+/** Χρόνος χάριτος πριν ένα μόλις ολοκληρωμένο κείμενο εξαφανιστεί από τη λίστα «Μη
+ * μεταφρασμένα» — ώστε ο μεταφραστής να προλάβει να διορθώσει κάτι χωρίς να χάσει τη
+ * θέση του στη λίστα. Αφορά μόνο αυτή τη φιλτραρισμένη προβολή στον client· η πρόοδος
+ * (μπάρες, σύνολα project) ενημερώνεται κανονικά, αμέσως. */
+const UNTRANSLATED_GRACE_MS = 15_000;
+
 export function StringEditor() {
   const { projectId, fileId } = useParams<{ projectId: string; fileId: string }>();
   const [data, setData] = useState<StringsResponse | null>(null);
@@ -63,10 +69,23 @@ export function StringEditor() {
     }
   }, [projectId, fileId]);
 
+  // Κείμενα που μόλις ολοκληρώθηκαν σε αυτή τη σελίδα (id → πότε λήγει η χάρη). Μόνο
+  // strings που έγιναν done ΕΝΩ η σελίδα ήταν ανοιχτή μπαίνουν εδώ — μια μετάφραση που
+  // ήταν ήδη έτοιμη πριν το άνοιγμα της σελίδας δεν χρειάζεται χρόνο χάριτος, απλώς δεν
+  // εμφανίζεται καθόλου στο φίλτρο.
+  const recentlyCompletedRef = useRef<Map<string, number>>(new Map());
+  const [graceTick, setGraceTick] = useState(0);
+
   const visible = useMemo(() => {
     if (!data) return [];
+    const now = Date.now();
+    // Καθαρισμός ληγμένων καταχωρήσεων πριν το φιλτράρισμα, ώστε μια ληγμένη χάρη να μην
+    // κρατήσει το string στη λίστα ένα ακόμα render παραπάνω.
+    for (const [id, expiresAt] of recentlyCompletedRef.current) {
+      if (expiresAt <= now) recentlyCompletedRef.current.delete(id);
+    }
     let result = onlyUntranslated
-      ? data.strings.filter((s) => !isDone(s, data.language))
+      ? data.strings.filter((s) => !isDone(s, data.language) || recentlyCompletedRef.current.has(s.id))
       : data.strings;
     if (query) {
       result = result.filter(
@@ -77,7 +96,16 @@ export function StringEditor() {
       );
     }
     return result;
-  }, [data, onlyUntranslated, query]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- graceTick προκαλεί επανυπολογισμό όταν λήγει μια χάρη, χωρίς να είναι πραγματική τιμή που διαβάζεται εδώ.
+  }, [data, onlyUntranslated, query, graceTick]);
+
+  // Χρονόμετρο μόνο όσο υπάρχει κάτι σε χρόνο χάριτος — ξαναϋπολογίζει το visible ώστε
+  // ένα ληγμένο string να εξαφανιστεί χωρίς να χρειάζεται άλλη αλληλεπίδραση του χρήστη.
+  useEffect(() => {
+    if (recentlyCompletedRef.current.size === 0) return;
+    const interval = setInterval(() => setGraceTick((t) => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, [graceTick]);
 
   // Εικονικοποίηση: ένα αρχείο με 10.000 κείμενα δεν πρέπει να παγώνει τη σελίδα.
   const virtualizer = useVirtualizer({
@@ -88,14 +116,24 @@ export function StringEditor() {
   });
 
   const updateLocal = useCallback((id: string, patch: Partial<SourceStringView>) => {
-    setData((current) =>
-      current
-        ? {
-            ...current,
-            strings: current.strings.map((s) => (s.id === id ? { ...s, ...patch } : s)),
-          }
-        : current,
-    );
+    setData((current) => {
+      if (!current) return current;
+      const strings = current.strings.map((s) => {
+        if (s.id !== id) return s;
+        const updated = { ...s, ...patch };
+        // Μόλις ένα string γίνει done ενώ η σελίδα είναι ανοιχτή, παίρνει χρόνο χάριτος
+        // πριν εξαφανιστεί από τη λίστα «Μη μεταφρασμένα» — βλ. UNTRANSLATED_GRACE_MS.
+        if (!isDone(s, current.language) && isDone(updated, current.language)) {
+          recentlyCompletedRef.current.set(id, Date.now() + UNTRANSLATED_GRACE_MS);
+          setGraceTick((t) => t + 1);
+        } else if (!isDone(updated, current.language)) {
+          // Ξαναέγινε μη μεταφρασμένο (π.χ. σβήστηκε το κείμενο) — δεν χρειάζεται πια χάρη.
+          recentlyCompletedRef.current.delete(id);
+        }
+        return updated;
+      });
+      return { ...current, strings };
+    });
   }, []);
 
   if (!projectId || !fileId) return null;
