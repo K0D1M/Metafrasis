@@ -32,6 +32,28 @@ describe('extractMentions', () => {
   it('κείμενο χωρίς αναφορές δίνει άδειο πίνακα', () => {
     expect(extractMentions('Απλό κείμενο χωρίς τίποτα', MEMBERS)).toEqual([]);
   });
+
+  const MIXED = new Set(['Yankee Dio', 'Yankee', 'Asxe', 'Κώστας']);
+
+  it('αναγνωρίζει ονόματα με κενό', () => {
+    expect(extractMentions('Πως @Yankee Dio @Asxe πως να μεταφραστεί;', MIXED)).toEqual(['Yankee Dio', 'Asxe']);
+  });
+
+  it('προτιμά το μακρύτερο όνομα που ταιριάζει', () => {
+    expect(extractMentions('@Yankee Dio και @Yankee', MIXED)).toEqual(['Yankee Dio', 'Yankee']);
+  });
+
+  it('αναγνωρίζει ελληνικά ονόματα', () => {
+    expect(extractMentions('Ρώτα τον @Κώστας.', MIXED)).toEqual(['Κώστας']);
+  });
+
+  it('δεν ταιριάζει όταν το όνομα συνεχίζει με γράμμα ή ψηφίο', () => {
+    expect(extractMentions('@Asxe2 και @Κώσταςς', MIXED)).toEqual([]);
+  });
+
+  it('δεν θεωρεί αναφορά ένα @ μέσα σε λέξη', () => {
+    expect(extractMentions('γράψε στο info@maria.gr', MEMBERS)).toEqual([]);
+  });
 });
 
 describe('splitMentions', () => {
