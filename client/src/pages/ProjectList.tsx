@@ -6,6 +6,7 @@ import { api, ApiRequestError } from '../lib/api.js';
 import { useAuth } from '../lib/auth.js';
 import { AccountMenu, AdminLink, EmptyState, Modal, ProgressBar, ThemeToggle } from '../components/common.js';
 import { NotificationBell } from '../components/NotificationBell.js';
+import { Icon } from '../components/Icon.js';
 
 export function ProjectList() {
   const { logout } = useAuth();
@@ -25,7 +26,8 @@ export function ProjectList() {
           <ThemeToggle />
           <NotificationBell />
           <AccountMenu />
-          <button className="ghost" onClick={() => void logout()}>
+          <button className="ghost icon-btn" onClick={() => void logout()}>
+            <Icon name="logout" />
             {el.auth.logout}
           </button>
         </div>
@@ -33,7 +35,8 @@ export function ProjectList() {
 
       <div className="spread" style={{ marginBottom: '1rem' }}>
         <h2 style={{ margin: 0 }}>{el.projects.title}</h2>
-        <button className="primary" onClick={() => setCreating(true)}>
+        <button className="primary icon-btn" onClick={() => setCreating(true)}>
+          <Icon name="add" />
           {el.projects.create}
         </button>
       </div>
@@ -163,14 +166,16 @@ function CreateProjectModal({
         {error && <div className="field-error">{error}</div>}
 
         <div className="row" style={{ justifyContent: 'flex-end', marginTop: '1rem' }}>
-          <button type="button" onClick={onClose}>
+          <button type="button" className="icon-btn" onClick={onClose}>
+            <Icon name="cancel" />
             {el.app.cancel}
           </button>
           <button
             type="submit"
-            className="primary"
+            className="primary icon-btn"
             disabled={busy || !name.trim() || targetLanguages.length === 0}
           >
+            <Icon name="save" />
             {busy ? el.app.loading : el.projects.createButton}
           </button>
         </div>

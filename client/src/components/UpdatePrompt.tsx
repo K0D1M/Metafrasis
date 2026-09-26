@@ -1,5 +1,6 @@
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { el } from '../i18n/el.js';
+import { Icon } from './Icon.js';
 
 const UPDATE_CHECK_MS = 60 * 60 * 1000;
 
@@ -37,7 +38,8 @@ export function UpdatePrompt() {
       }}
     >
       <span>{el.app.updateAvailable}</span>
-      <button className="primary" onClick={() => void updateServiceWorker(true)}>
+      <button className="primary icon-btn" onClick={() => void updateServiceWorker(true)}>
+        <Icon name="refresh" />
         {el.app.updateReload}
       </button>
       <button className="ghost" onClick={() => setNeedRefresh(false)} aria-label={el.app.updateLater}>

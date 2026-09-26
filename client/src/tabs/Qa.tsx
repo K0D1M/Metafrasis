@@ -10,6 +10,7 @@ import { el } from '../i18n/el.js';
 import { api, ApiRequestError } from '../lib/api.js';
 import { useAuth } from '../lib/auth.js';
 import { Avatar, EmptyState, Modal, formatDate } from '../components/common.js';
+import { Icon } from '../components/Icon.js';
 import type { ProjectDetail } from '../pages/ProjectWindow.js';
 
 export function QaTab({ project }: { project: ProjectDetail }) {
@@ -46,7 +47,8 @@ export function QaTab({ project }: { project: ProjectDetail }) {
     <div>
       <div className="spread" style={{ marginBottom: '1rem' }}>
         <h2 style={{ margin: 0 }}>{el.qa.title}</h2>
-        <button className="primary" onClick={() => setShowForm((v) => !v)}>
+        <button className="primary icon-btn" onClick={() => setShowForm((v) => !v)}>
+          <Icon name="add" />
           {el.qa.create}
         </button>
       </div>
@@ -128,7 +130,8 @@ export function QaTab({ project }: { project: ProjectDetail }) {
                     )}
                   </div>
                   <div className="row">
-                    <button onClick={() => void toggle(report)}>
+                    <button className="icon-btn" onClick={() => void toggle(report)}>
+                      <Icon name={resolved ? 'refresh' : 'save'} />
                       {resolved ? el.qa.reopen : el.qa.resolve}
                     </button>
                     {canDelete && (
@@ -245,14 +248,16 @@ function NewReportForm({
       {error && <div className="field-error">{error}</div>}
 
       <div className="row" style={{ justifyContent: 'flex-end' }}>
-        <button type="button" onClick={onClose}>
+        <button type="button" className="icon-btn" onClick={onClose}>
+          <Icon name="cancel" />
           {el.app.cancel}
         </button>
         <button
           type="submit"
-          className="primary"
+          className="primary icon-btn"
           disabled={busy || !title.trim() || !description.trim()}
         >
+          <Icon name="save" />
           {busy ? el.app.loading : el.app.save}
         </button>
       </div>

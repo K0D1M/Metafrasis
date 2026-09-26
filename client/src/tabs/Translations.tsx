@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { el } from '../i18n/el.js';
 import { api } from '../lib/api.js';
 import { EmptyState, ProgressBar } from '../components/common.js';
+import { Icon } from '../components/Icon.js';
 import type { ProjectDetail } from '../pages/ProjectWindow.js';
 
 interface SummaryResponse {
@@ -69,7 +70,8 @@ export function TranslationsTab({ project }: { project: ProjectDetail }) {
           <h2 style={{ margin: 0 }}>{el.translationsTab.title}</h2>
           <span className="muted">{el.translationsTab.hint}</span>
         </div>
-        <button className="primary" onClick={() => void download()} disabled={downloading}>
+        <button className="primary icon-btn" onClick={() => void download()} disabled={downloading}>
+          <Icon name="download" />
           {downloading ? el.translationsTab.downloading : el.translationsTab.download}
         </button>
       </div>

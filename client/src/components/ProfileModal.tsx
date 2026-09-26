@@ -9,6 +9,7 @@ import { api, ApiRequestError } from '../lib/api.js';
 import { useAuth } from '../lib/auth.js';
 import { resizeToAvatarDataUrl } from '../lib/image.js';
 import { Avatar, Modal } from './common.js';
+import { Icon } from './Icon.js';
 
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
 
@@ -79,11 +80,17 @@ export function ProfileModal({ onClose }: { onClose: () => void }) {
         />
 
         <div className="row">
-          <button className="primary" onClick={() => fileInput.current?.click()} disabled={busy}>
+          <button
+            className="primary icon-btn"
+            onClick={() => fileInput.current?.click()}
+            disabled={busy}
+          >
+            <Icon name="upload" />
             {busy ? el.app.loading : el.profile.changeAvatar}
           </button>
           {user.avatarUrl && (
-            <button onClick={() => void saveAvatar(null)} disabled={busy}>
+            <button className="icon-btn" onClick={() => void saveAvatar(null)} disabled={busy}>
+              <Icon name="delete" />
               {el.profile.removeAvatar}
             </button>
           )}
@@ -141,7 +148,12 @@ function RecentCountSetting() {
           onChange={(e) => setValue(e.target.value)}
           style={{ width: 100 }}
         />
-        <button onClick={() => void save()} disabled={!valid || !changed || status === 'saving'}>
+        <button
+          className="icon-btn"
+          onClick={() => void save()}
+          disabled={!valid || !changed || status === 'saving'}
+        >
+          <Icon name="save" />
           {status === 'saving' ? el.app.loading : el.app.save}
         </button>
         {status === 'saved' && <span className="badge">{el.profile.saved}</span>}

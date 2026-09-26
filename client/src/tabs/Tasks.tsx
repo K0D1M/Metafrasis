@@ -10,6 +10,7 @@ import { el } from '../i18n/el.js';
 import { api, ApiRequestError } from '../lib/api.js';
 import { useAuth } from '../lib/auth.js';
 import { Avatar, EmptyState, formatDate } from '../components/common.js';
+import { Icon } from '../components/Icon.js';
 import { MentionTextarea } from '../components/MentionTextarea.js';
 import { renderWithMentions } from '../lib/mentions.js';
 import type { ProjectDetail } from '../pages/ProjectWindow.js';
@@ -37,7 +38,8 @@ export function TasksTab({ project }: { project: ProjectDetail }) {
       <div className="spread" style={{ marginBottom: '1rem' }}>
         <h2 style={{ margin: 0 }}>{el.tasks.title}</h2>
         {isManager && (
-          <button className="primary" onClick={() => setShowForm((v) => !v)}>
+          <button className="primary icon-btn" onClick={() => setShowForm((v) => !v)}>
+            <Icon name="add" />
             {el.tasks.assign}
           </button>
         )}
@@ -133,7 +135,8 @@ function TaskCard({
         <div className="row">
           <span className="badge">{done ? el.tasks.done : el.tasks.open}</span>
           {canToggle && (
-            <button onClick={() => void toggle()}>
+            <button className="icon-btn" onClick={() => void toggle()}>
+              <Icon name={done ? 'refresh' : 'save'} />
               {done ? el.tasks.reopen : el.tasks.markDone}
             </button>
           )}
@@ -189,7 +192,8 @@ function TaskCard({
             style={{ minHeight: 54 }}
           />
           <div className="row" style={{ justifyContent: 'flex-end', marginTop: '0.4rem' }}>
-            <button type="submit" className="primary" disabled={sending || !body.trim()}>
+            <button type="submit" className="primary icon-btn" disabled={sending || !body.trim()}>
+              <Icon name="reply" />
               {el.editor.send}
             </button>
           </div>
@@ -325,10 +329,16 @@ function NewTaskForm({
       {error && <div className="field-error">{error}</div>}
 
       <div className="row" style={{ justifyContent: 'flex-end' }}>
-        <button type="button" onClick={onClose}>
+        <button type="button" className="icon-btn" onClick={onClose}>
+          <Icon name="cancel" />
           {el.app.cancel}
         </button>
-        <button type="submit" className="primary" disabled={busy || !title.trim() || !assigneeId}>
+        <button
+          type="submit"
+          className="primary icon-btn"
+          disabled={busy || !title.trim() || !assigneeId}
+        >
+          <Icon name="save" />
           {busy ? el.app.loading : el.tasks.assignButton}
         </button>
       </div>

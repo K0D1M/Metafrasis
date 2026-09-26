@@ -135,6 +135,9 @@ button.primary:hover:not(:disabled) {
 button.ghost { background: transparent; border-color: transparent; }
 button.ghost:hover:not(:disabled) { background: var(--surface-2); }
 
+/* Κουμπί με εικονίδιο πριν την ετικέτα — ίδιο gap με το .tab, ώστε να ταιριάζουν οπτικά. */
+button.icon-btn { display: inline-flex; align-items: center; gap: 0.4rem; }
+
 button.danger { color: var(--danger); }
 
 /* ── Πεδία ────────────────────────────────────────────────────────────────── */

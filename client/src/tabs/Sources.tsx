@@ -6,6 +6,7 @@ import { el } from '../i18n/el.js';
 import { api, ApiRequestError } from '../lib/api.js';
 import { EmptyState, Modal, ProgressBar, formatDate } from '../components/common.js';
 import { DropZone } from '../components/DropZone.js';
+import { Icon } from '../components/Icon.js';
 import type { ProjectDetail } from '../pages/ProjectWindow.js';
 
 interface SourcesResponse {
@@ -241,12 +242,16 @@ export function SourcesTab({
         </div>
         {isManager && (
           <div className="row">
-            <button onClick={() => setCreatingFolder(true)}>{el.sources.newFolder}</button>
+            <button className="icon-btn" onClick={() => setCreatingFolder(true)}>
+              <Icon name="folder" />
+              {el.sources.newFolder}
+            </button>
             <button
-              className="primary"
+              className="primary icon-btn"
               onClick={() => addInput.current?.click()}
               disabled={inFlight.has('add')}
             >
+              <Icon name="upload" />
               {inFlight.has('add') ? el.app.loading : el.sources.addFile}
             </button>
           </div>
@@ -376,12 +381,14 @@ export function SourcesTab({
                                   </>
                                 )}
                                 <button
+                                  className="icon-btn"
                                   onClick={() => {
                                     setUpdatingFileId(file.id);
                                     updateInput.current?.click();
                                   }}
                                   disabled={inFlight.has(`update:${file.id}`)}
                                 >
+                                  <Icon name="refresh" />
                                   {inFlight.has(`update:${file.id}`)
                                     ? el.app.loading
                                     : el.sources.update}
@@ -494,10 +501,12 @@ function NewFolderModal({
         </div>
         {error && <div className="field-error">{error}</div>}
         <div className="row" style={{ justifyContent: 'flex-end' }}>
-          <button type="button" onClick={onClose} disabled={busy}>
+          <button type="button" className="icon-btn" onClick={onClose} disabled={busy}>
+            <Icon name="cancel" />
             {el.app.cancel}
           </button>
-          <button type="submit" className="primary" disabled={busy || !name.trim()}>
+          <button type="submit" className="primary icon-btn" disabled={busy || !name.trim()}>
+            <Icon name="save" />
             {busy ? el.app.loading : el.app.save}
           </button>
         </div>

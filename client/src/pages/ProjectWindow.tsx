@@ -7,6 +7,7 @@ import { useAuth } from '../lib/auth.js';
 import { AccountMenu, AdminLink, ProgressBar, ThemeToggle } from '../components/common.js';
 import { NotificationBell } from '../components/NotificationBell.js';
 import { TabIcon } from '../components/TabIcon.js';
+import { Icon } from '../components/Icon.js';
 import { SourcesTab } from '../tabs/Sources.js';
 import { MembersTab } from '../tabs/Members.js';
 import { TranslationsTab } from '../tabs/Translations.js';
@@ -102,7 +103,8 @@ export function ProjectWindow() {
           <ThemeToggle />
           <NotificationBell />
           <AccountMenu />
-          <button className="ghost" onClick={() => void logout()}>
+          <button className="ghost icon-btn" onClick={() => void logout()}>
+            <Icon name="logout" />
             {el.auth.logout}
           </button>
         </div>

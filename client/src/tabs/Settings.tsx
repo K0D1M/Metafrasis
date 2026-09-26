@@ -4,6 +4,7 @@ import { Role } from '@metafrasis/shared';
 import { el } from '../i18n/el.js';
 import { api, ApiRequestError } from '../lib/api.js';
 import { EmptyState } from '../components/common.js';
+import { Icon } from '../components/Icon.js';
 import type { ProjectDetail } from '../pages/ProjectWindow.js';
 
 export function SettingsTab({
@@ -88,7 +89,8 @@ export function SettingsTab({
 
         <div className="row" style={{ justifyContent: 'flex-end' }}>
           {saved && <span className="badge">{el.settings.saved}</span>}
-          <button type="submit" className="primary" disabled={busy || !name.trim()}>
+          <button type="submit" className="primary icon-btn" disabled={busy || !name.trim()}>
+            <Icon name="save" />
             {busy ? el.app.loading : el.app.save}
           </button>
         </div>
@@ -97,7 +99,8 @@ export function SettingsTab({
       <div className="card" style={{ borderColor: 'var(--danger)' }}>
         <h3 style={{ color: 'var(--danger)' }}>{el.settings.dangerZone}</h3>
         <p className="muted">{el.settings.deleteHint}</p>
-        <button className="danger" onClick={() => void remove()}>
+        <button className="danger icon-btn" onClick={() => void remove()}>
+          <Icon name="delete" />
           {el.settings.deleteProject}
         </button>
       </div>

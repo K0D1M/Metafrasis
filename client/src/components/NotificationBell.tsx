@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import type { NotificationView } from '@metafrasis/shared';
 import { el } from '../i18n/el.js';
 import { api } from '../lib/api.js';
+import { Icon } from './Icon.js';
 
 const POLL_MS = 30_000;
 
@@ -124,7 +125,12 @@ export function NotificationBell() {
           <div className="spread" style={{ marginBottom: '0.6rem' }}>
             <strong>{el.notifications.title}</strong>
             {items && items.some((n) => !n.read) && (
-              <button className="ghost" style={{ fontSize: '0.85em' }} onClick={() => void markAllRead()}>
+              <button
+                className="ghost icon-btn"
+                style={{ fontSize: '0.85em' }}
+                onClick={() => void markAllRead()}
+              >
+                <Icon name="save" size={14} />
                 {el.notifications.markAllRead}
               </button>
             )}

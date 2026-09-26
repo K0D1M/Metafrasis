@@ -4,6 +4,7 @@ import type { PasswordResetResult } from '@metafrasis/shared';
 import { el } from '../i18n/el.js';
 import { api, ApiRequestError } from '../lib/api.js';
 import { ThemeToggle } from '../components/common.js';
+import { Icon } from '../components/Icon.js';
 
 /**
  * Ζητά σύνδεσμο επαναφοράς. Χωρίς SMTP σε αυτή τη φάση, ο σύνδεσμος εμφανίζεται εδώ
@@ -71,7 +72,8 @@ export function ForgotPassword() {
                   {result.url}
                 </div>
                 <div className="row" style={{ justifyContent: 'flex-end' }}>
-                  <button onClick={() => void copyLink()}>
+                  <button className="icon-btn" onClick={() => void copyLink()}>
+                    <Icon name="copy" />
                     {copied ? el.members.copied : el.members.copy}
                   </button>
                 </div>
@@ -101,7 +103,13 @@ export function ForgotPassword() {
 
             {error && <div className="field-error">{error}</div>}
 
-            <button type="submit" className="primary" disabled={busy} style={{ width: '100%' }}>
+            <button
+              type="submit"
+              className="primary icon-btn"
+              disabled={busy}
+              style={{ width: '100%', justifyContent: 'center' }}
+            >
+              <Icon name="save" />
               {busy ? el.app.loading : el.passwordReset.requestButton}
             </button>
 

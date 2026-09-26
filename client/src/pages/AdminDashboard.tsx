@@ -4,6 +4,7 @@ import { Role, roleLabels, type AdminProjectView, type AdminUserView } from '@me
 import { el } from '../i18n/el.js';
 import { api, ApiRequestError } from '../lib/api.js';
 import { Avatar, EmptyState, ProgressBar, ThemeToggle, formatDate } from '../components/common.js';
+import { Icon } from '../components/Icon.js';
 
 export function AdminDashboard() {
   const [tab, setTab] = useState<'projects' | 'users'>('projects');
@@ -175,9 +176,10 @@ function AdminProjectCard({
                     <td className="hide-narrow muted">{formatDate(member.joinedAt)}</td>
                     <td style={{ textAlign: 'end' }}>
                       <button
-                        className="ghost danger"
+                        className="ghost danger icon-btn"
                         onClick={() => void removeMember(member.userId, member.username)}
                       >
+                        <Icon name="delete" />
                         {el.admin.remove}
                       </button>
                     </td>
@@ -200,7 +202,8 @@ function AdminProjectCard({
               <option value={Role.TRANSLATOR}>{roleLabels[Role.TRANSLATOR]}</option>
               <option value={Role.MANAGER}>{roleLabels[Role.MANAGER]}</option>
             </select>
-            <button onClick={() => void addMember()} disabled={!addingUserId}>
+            <button className="icon-btn" onClick={() => void addMember()} disabled={!addingUserId}>
+              <Icon name="add" />
               {el.admin.addMember}
             </button>
           </div>
@@ -280,9 +283,13 @@ function AdminUsers() {
                     <td className="muted">{formatDate(u.createdAt)}</td>
                     <td style={{ textAlign: 'end' }}>
                       {deactivated ? (
-                        <button onClick={() => void reactivate(u)}>{el.admin.reactivate}</button>
+                        <button className="icon-btn" onClick={() => void reactivate(u)}>
+                          <Icon name="refresh" />
+                          {el.admin.reactivate}
+                        </button>
                       ) : (
-                        <button className="ghost danger" onClick={() => void deactivate(u)}>
+                        <button className="ghost danger icon-btn" onClick={() => void deactivate(u)}>
+                          <Icon name="delete" />
                           {el.admin.deactivate}
                         </button>
                       )}

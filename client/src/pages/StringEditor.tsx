@@ -7,6 +7,7 @@ import { el } from '../i18n/el.js';
 import { api } from '../lib/api.js';
 import { Avatar, ThemeToggle, formatDate } from '../components/common.js';
 import { MentionTextarea } from '../components/MentionTextarea.js';
+import { Icon } from '../components/Icon.js';
 import { renderWithMentions } from '../lib/mentions.js';
 import { useAuth } from '../lib/auth.js';
 
@@ -45,6 +46,8 @@ function isDone(item: SourceStringView, language: string): boolean {
  * (μπάρες, σύνολα project) ενημερώνεται κανονικά, αμέσως. */
 const UNTRANSLATED_GRACE_MS = 15_000;
 
+type SortMode = 'order' | 'key' | 'source' | 'recent';
+
 export function StringEditor() {
   const { projectId, fileId } = useParams<{ projectId: string; fileId: string }>();
   const [data, setData] = useState<StringsResponse | null>(null);
@@ -52,6 +55,7 @@ export function StringEditor() {
   const [selected, setSelected] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState('');
   const [query, setQuery] = useState('');
+  const [sortMode, setSortMode] = useState<SortMode>('order');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Απόσβεση: με 20.000+ κείμενα σε ένα αρχείο, φιλτράρισμα σε κάθε πάτημα πλήκτρου
@@ -96,9 +100,18 @@ export function StringEditor() {
           (s.translation ?? '').toLowerCase().includes(query),
       );
     }
+    if (sortMode !== 'order') {
+      const collator = new Intl.Collator('el', { numeric: true, sensitivity: 'base' });
+      result = [...result].sort((a, b) => {
+        if (sortMode === 'key') return collator.compare(a.key, b.key);
+        if (sortMode === 'source') return collator.compare(a.sourceText, b.sourceText);
+        // Μη μεταφρασμένα (χωρίς ημερομηνία) στο τέλος.
+        return (b.translatedAt ?? '').localeCompare(a.translatedAt ?? '');
+      });
+    }
     return result;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- graceTick προκαλεί επανυπολογισμό όταν λήγει μια χάρη, χωρίς να είναι πραγματική τιμή που διαβάζεται εδώ.
-  }, [data, onlyUntranslated, query, graceTick]);
+  }, [data, onlyUntranslated, query, sortMode, graceTick]);
 
   // Χρονόμετρο μόνο όσο υπάρχει κάτι σε χρόνο χάριτος — ξαναϋπολογίζει το visible ώστε
   // ένα ληγμένο string να εξαφανιστεί χωρίς να χρειάζεται άλλη αλληλεπίδραση του χρήστη.
@@ -121,6 +134,7 @@ export function StringEditor() {
   const recentPageSize = user?.recentTranslationsCount ?? 10;
   // Πόσες «σελίδες» έχει φορτώσει ο χρήστης με το «Φόρτωση περισσότερων».
   const [recentPages, setRecentPages] = useState(1);
+  const [recentNewestFirst, setRecentNewestFirst] = useState(true);
 
   // Οι πιο πρόσφατες μεταφράσεις του αρχείου, από οποιοδήποτε μέλος. Μόνο γραμμές με
   // πραγματικό κείμενο — ένα «Χωρίς μετάφραση» δεν είναι μετάφραση για να ξαναδεί κανείς.
@@ -128,8 +142,11 @@ export function StringEditor() {
     if (!data) return [];
     return data.strings
       .filter((s) => s.translatedAt && s.translation && s.translation.trim())
-      .sort((a, b) => (b.translatedAt ?? '').localeCompare(a.translatedAt ?? ''));
-  }, [data]);
+      .sort((a, b) => {
+        const order = (b.translatedAt ?? '').localeCompare(a.translatedAt ?? '');
+        return recentNewestFirst ? order : -order;
+      });
+  }, [data, recentNewestFirst]);
   const recent = allRecent.slice(0, recentPageSize * recentPages);
 
   // Μετάβαση σε κείμενο από το πάνελ. Αν τα φίλτρα το κρύβουν, τα καθαρίζουμε πρώτα και
@@ -236,19 +253,33 @@ export function StringEditor() {
               </button>
             )}
           </div>
+          <select
+            value={sortMode}
+            onChange={(e) => setSortMode(e.target.value as SortMode)}
+            aria-label={el.editor.sortLabel}
+            title={el.editor.sortLabel}
+            style={{ width: 'auto' }}
+          >
+            <option value="order">{el.editor.sortOrder}</option>
+            <option value="key">{el.editor.sortKey}</option>
+            <option value="source">{el.editor.sortSource}</option>
+            <option value="recent">{el.editor.sortRecent}</option>
+          </select>
           <button
-            className={onlyUntranslated ? 'primary' : ''}
+            className={`icon-btn${onlyUntranslated ? ' primary' : ''}`}
             onClick={() => setOnlyUntranslated((v) => !v)}
           >
+            <Icon name={onlyUntranslated ? 'filterOff' : 'filter'} />
             {onlyUntranslated ? el.editor.all : el.editor.untranslated}
           </button>
           <button
-            className={showRecent ? 'primary' : ''}
+            className={`icon-btn${showRecent ? ' primary' : ''}`}
             onClick={() => {
               setShowRecent((v) => !v);
               setRecentPages(1);
             }}
           >
+            <Icon name="list" />
             {el.editor.recent}
           </button>
           <ThemeToggle />
@@ -314,6 +345,18 @@ export function StringEditor() {
           <div className="spread" style={{ marginBottom: '0.5rem' }}>
             <strong>{el.editor.recent}</strong>
             <button
+              className="ghost icon-btn"
+              onClick={() => {
+                setRecentNewestFirst((v) => !v);
+                setRecentPages(1);
+              }}
+              title={el.editor.sortLabel}
+              style={{ marginLeft: 'auto', fontSize: '0.85em' }}
+            >
+              <Icon name={recentNewestFirst ? 'sortDesc' : 'sortAsc'} size={14} />
+              {recentNewestFirst ? el.editor.recentNewest : el.editor.recentOldest}
+            </button>
+            <button
               className="ghost"
               onClick={() => setShowRecent(false)}
               title={el.editor.recentClose}
@@ -359,7 +402,12 @@ export function StringEditor() {
                 </button>
               ))}
               {recent.length < allRecent.length && (
-                <button onClick={() => setRecentPages((p) => p + 1)} style={{ width: '100%' }}>
+                <button
+                  className="icon-btn"
+                  onClick={() => setRecentPages((p) => p + 1)}
+                  style={{ width: '100%', justifyContent: 'center' }}
+                >
+                  <Icon name="refresh" />
                   {el.editor.recentLoadMore}
                 </button>
               )}
@@ -490,10 +538,11 @@ function StringRow({
           {item.skipped && <span className="badge ignored">{el.editor.skipped}</span>}
           <button
             type="button"
-            className={item.skipped ? '' : 'ghost'}
+            className={`icon-btn${item.skipped ? '' : ' ghost'}`}
             onClick={() => void toggleSkipped()}
             title={item.skipped ? el.editor.unskipHint : el.editor.skipHint}
           >
+            <Icon name={item.skipped ? 'refresh' : 'cancel'} size={14} />
             {item.skipped ? el.editor.unskip : el.editor.skip}
           </button>
           <button className="ghost" onClick={onToggleComments}>
@@ -620,7 +669,8 @@ function CommentThread({ projectId, stringId }: { projectId: string; stringId: s
           style={{ minHeight: 56 }}
         />
         <div className="row" style={{ justifyContent: 'flex-end', marginTop: '0.4rem' }}>
-          <button className="primary" onClick={() => void send()} disabled={!body.trim()}>
+          <button className="primary icon-btn" onClick={() => void send()} disabled={!body.trim()}>
+            <Icon name="reply" />
             {el.editor.send}
           </button>
         </div>

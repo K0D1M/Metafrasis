@@ -6,6 +6,7 @@ import { useAuth } from '../lib/auth.js';
 import { api, ApiRequestError } from '../lib/api.js';
 import { ThemeToggle } from '../components/common.js';
 import { PasswordField } from '../components/PasswordField.js';
+import { Icon } from '../components/Icon.js';
 
 interface InvitePreview {
   email: string;
@@ -132,7 +133,13 @@ export function Register() {
           </div>
         )}
 
-        <button type="submit" className="primary" disabled={busy} style={{ width: '100%' }}>
+        <button
+          type="submit"
+          className="primary icon-btn"
+          disabled={busy}
+          style={{ width: '100%', justifyContent: 'center' }}
+        >
+          <Icon name="add" />
           {busy ? el.app.loading : el.auth.register}
         </button>
 

@@ -8,6 +8,7 @@ import { el } from '../i18n/el.js';
 import { api, ApiRequestError } from '../lib/api.js';
 import { Avatar, EmptyState, Modal, formatDate } from '../components/common.js';
 import { DropZone } from '../components/DropZone.js';
+import { Icon } from '../components/Icon.js';
 import { useAuth } from '../lib/auth.js';
 import type { ProjectDetail } from '../pages/ProjectWindow.js';
 
@@ -93,7 +94,8 @@ export function ScreenshotsTab({ project }: { project: ProjectDetail }) {
           <h2 style={{ margin: 0 }}>{el.screenshots.title}</h2>
           <span className="muted">{el.screenshots.maxSize(MAX_MB)}</span>
         </div>
-        <button className="primary" onClick={() => fileInput.current?.click()} disabled={busy}>
+        <button className="primary icon-btn" onClick={() => fileInput.current?.click()} disabled={busy}>
+          <Icon name="upload" />
           {busy ? el.app.loading : el.screenshots.upload}
         </button>
       </div>
@@ -200,10 +202,14 @@ export function ScreenshotsTab({ project }: { project: ProjectDetail }) {
             </span>
             <div className="row">
               <a href={preview.downloadUrl}>
-                <button type="button">{el.screenshots.download}</button>
+                <button type="button" className="icon-btn">
+                  <Icon name="download" />
+                  {el.screenshots.download}
+                </button>
               </a>
               {(preview.uploader.id === user?.id || project.role === Role.MANAGER) && (
-                <button className="ghost danger" onClick={() => void handleDelete(preview)}>
+                <button className="ghost danger icon-btn" onClick={() => void handleDelete(preview)}>
+                  <Icon name="delete" />
                   {el.app.delete}
                 </button>
               )}
@@ -224,8 +230,12 @@ export function ScreenshotsTab({ project }: { project: ProjectDetail }) {
             autoFocus
           />
           <div className="row" style={{ justifyContent: 'flex-end', marginTop: '0.75rem' }}>
-            <button onClick={() => setPendingFiles(null)}>{el.app.cancel}</button>
-            <button className="primary" onClick={() => void confirmPendingUpload()}>
+            <button className="icon-btn" onClick={() => setPendingFiles(null)}>
+              <Icon name="cancel" />
+              {el.app.cancel}
+            </button>
+            <button className="primary icon-btn" onClick={() => void confirmPendingUpload()}>
+              <Icon name="upload" />
               {el.screenshots.upload}
             </button>
           </div>

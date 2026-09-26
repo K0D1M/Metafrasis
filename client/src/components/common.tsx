@@ -108,16 +108,9 @@ export function AdminLink() {
   return (
     <Link to="/admin">
       <button
-        className="primary"
+        className="primary icon-btn"
         type="button"
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '0.4rem',
-          background: 'var(--danger)',
-          borderColor: 'var(--danger)',
-          color: 'var(--accent-contrast)',
-        }}
+        style={{ background: 'var(--danger)', borderColor: 'var(--danger)', color: 'var(--accent-contrast)' }}
       >
         <ShieldIcon />
         {el.admin.title}

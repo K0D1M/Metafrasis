@@ -6,6 +6,7 @@ import { useAuth } from '../lib/auth.js';
 import { api, ApiRequestError } from '../lib/api.js';
 import { ThemeToggle } from '../components/common.js';
 import { PasswordField } from '../components/PasswordField.js';
+import { Icon } from '../components/Icon.js';
 
 export function ResetPassword() {
   const { setUser } = useAuth();
@@ -74,7 +75,13 @@ export function ResetPassword() {
 
             {error && <div className="field-error">{error}</div>}
 
-            <button type="submit" className="primary" disabled={busy} style={{ width: '100%' }}>
+            <button
+              type="submit"
+              className="primary icon-btn"
+              disabled={busy}
+              style={{ width: '100%', justifyContent: 'center' }}
+            >
+              <Icon name="save" />
               {busy ? el.app.loading : el.passwordReset.confirmButton}
             </button>
 

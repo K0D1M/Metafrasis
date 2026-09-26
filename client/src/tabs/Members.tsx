@@ -8,6 +8,7 @@ import {
 import { el } from '../i18n/el.js';
 import { api, ApiRequestError } from '../lib/api.js';
 import { Avatar, Modal, formatDate } from '../components/common.js';
+import { Icon } from '../components/Icon.js';
 import type { ProjectDetail } from '../pages/ProjectWindow.js';
 
 export function MembersTab({ project }: { project: ProjectDetail }) {
@@ -33,7 +34,8 @@ export function MembersTab({ project }: { project: ProjectDetail }) {
       <div className="spread" style={{ marginBottom: '1rem' }}>
         <h2 style={{ margin: 0 }}>{el.members.title}</h2>
         {isManager && (
-          <button className="primary" onClick={() => setAdding(true)}>
+          <button className="primary icon-btn" onClick={() => setAdding(true)}>
+            <Icon name="add" />
             {el.members.add}
           </button>
         )}
@@ -148,10 +150,12 @@ function AddMemberModal({ projectId, onClose }: { projectId: string; onClose: ()
             {result.url}
           </div>
           <div className="row" style={{ justifyContent: 'flex-end' }}>
-            <button onClick={() => void copyLink()}>
+            <button className="icon-btn" onClick={() => void copyLink()}>
+              <Icon name="copy" />
               {copied ? el.members.copied : el.members.copy}
             </button>
-            <button className="primary" onClick={onClose}>
+            <button className="primary icon-btn" onClick={onClose}>
+              <Icon name="cancel" />
               {el.app.close}
             </button>
           </div>
@@ -207,10 +211,12 @@ function AddMemberModal({ projectId, onClose }: { projectId: string; onClose: ()
           {error && <div className="field-error">{error}</div>}
 
           <div className="row" style={{ justifyContent: 'flex-end' }}>
-            <button type="button" onClick={onClose}>
+            <button type="button" className="icon-btn" onClick={onClose}>
+              <Icon name="cancel" />
               {el.app.cancel}
             </button>
-            <button type="submit" className="primary" disabled={busy || !email.trim()}>
+            <button type="submit" className="primary icon-btn" disabled={busy || !email.trim()}>
+              <Icon name="save" />
               {busy ? el.app.loading : el.members.createLink}
             </button>
           </div>
@@ -315,14 +321,17 @@ function EditMemberModal({
         {error && <div className="field-error">{error}</div>}
 
         <div className="spread">
-          <button type="button" className="ghost danger" onClick={() => void remove()}>
+          <button type="button" className="ghost danger icon-btn" onClick={() => void remove()}>
+            <Icon name="delete" />
             {el.members.remove}
           </button>
           <div className="row">
-            <button type="button" onClick={onClose}>
+            <button type="button" className="icon-btn" onClick={onClose}>
+              <Icon name="cancel" />
               {el.app.cancel}
             </button>
-            <button type="submit" className="primary">
+            <button type="submit" className="primary icon-btn">
+              <Icon name="save" />
               {el.app.save}
             </button>
           </div>

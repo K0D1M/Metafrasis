@@ -5,6 +5,7 @@ import { el } from '../i18n/el.js';
 import { useAuth } from '../lib/auth.js';
 import { api, ApiRequestError } from '../lib/api.js';
 import { ThemeToggle } from '../components/common.js';
+import { Icon } from '../components/Icon.js';
 
 interface InvitePreview {
   email: string;
@@ -82,7 +83,11 @@ export function AcceptInvite() {
                 <div className="field-error">
                   {el.auth.inviteEmailMismatch(invite.email, user.username)}
                 </div>
-                <button onClick={() => void logout().then(() => navigate(`/login?invite=${token}`))}>
+                <button
+                  className="icon-btn"
+                  onClick={() => void logout().then(() => navigate(`/login?invite=${token}`))}
+                >
+                  <Icon name="logout" />
                   {el.auth.logoutAndSwitch}
                 </button>
               </div>
@@ -91,11 +96,12 @@ export function AcceptInvite() {
                 <p className="muted">{el.auth.acceptInviteAs(user.username)}</p>
                 {error && <div className="field-error">{error}</div>}
                 <button
-                  className="primary"
+                  className="primary icon-btn"
                   onClick={() => void accept()}
                   disabled={busy}
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', justifyContent: 'center' }}
                 >
+                  <Icon name="save" />
                   {busy ? el.app.loading : el.auth.acceptInviteButton}
                 </button>
               </>
