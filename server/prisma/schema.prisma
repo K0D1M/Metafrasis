@@ -107,6 +107,9 @@ model Folder {
 
 /// Ένα αρχείο JSON του παιχνιδιού. Το περιεχόμενο ζει στα FileVersion.
 model SourceFile {
+  /// Ολοκληρωμένο εκτός εφαρμογής: όλα τα κείμενα μετρούν ως μεταφρασμένα χωρίς εγγραφές
+  /// Translation. Αίρεται αυτόματα όταν μια Ενημέρωση προσθέσει ή αλλάξει κείμενα.
+  completed Boolean @default(false)
   id        String   @id @default(cuid())
   projectId String
   folderId  String?

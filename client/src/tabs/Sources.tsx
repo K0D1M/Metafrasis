@@ -14,18 +14,20 @@ interface SourcesResponse {
   files: SourceFileSummary[];
 }
 
-// Αντιστοίχιση σταδίων επεξεργασίας (όπως αναφέρονται από τον server μέσω NDJSON) σε
-// ποσοστό για τη μπάρα προόδου — τέσσερα διακριτά βήματα, όχι ομαλή προσομοίωση, αφού
-// αυτό είναι ό,τι πραγματικά γνωρίζουμε για την πρόοδο του ανεβάσματος.
+// Ο server στέλνει πραγματικό ποσοστό (και κατά την αποθήκευση, ανά παρτίδα)· αυτός ο
+// πίνακας είναι μόνο εφεδρεία αν κάποια γραμμή έρθει χωρίς ποσοστό.
 const STAGE_PERCENT: Record<string, number> = {
-  parsing: 25,
-  diffing: 50,
-  saving: 75,
+  parsing: 10,
+  diffing: 25,
+  saving: 30,
 };
 
+function toPercent(stage: string, percent?: number): number {
+  return percent ?? STAGE_PERCENT[stage] ?? 10;
+}
+
 /** Μπάρα προόδου με το ποσοστό γραμμένο μέσα της — κοινή για add και Ενημέρωση. */
-function StagePercentBar({ stage }: { stage: string | null }) {
-  const percent = STAGE_PERCENT[stage ?? 'parsing'];
+function StagePercentBar({ percent }: { percent: number }) {
   return (
     <div
       className="progress-track"
@@ -63,6 +65,8 @@ export function SourcesTab({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [creatingFolder, setCreatingFolder] = useState(false);
+  const [renamingFolder, setRenamingFolder] = useState<FolderNode | null>(null);
+  const [movingFile, setMovingFile] = useState<SourceFileSummary | null>(null);
   // Σύνολο κλειδιών ενεργειών που τρέχουν αυτή τη στιγμή: 'add' = ανέβασμα νέου αρχείου,
   // 'update:<fileId>' = Ενημέρωση συγκεκριμένου αρχείου. Σύνολο (όχι μονή τιμή) επειδή
   // μετά από ανανέωση σελίδας μπορεί να αποκατασταθεί παραπάνω από ένα ενεργό job
@@ -70,9 +74,9 @@ export function SourcesTab({
   // κουμπί/στοιχείο που πραγματικά κάνει κάτι κλειδώνει — όχι όλη η καρτέλα.
   const [inFlight, setInFlight] = useState<Set<string>>(() => new Set());
   // Στάδιο επεξεργασίας για το «Προσθήκη Αρχείου» (ξεχωριστό από τα updates παρακάτω).
-  const [addStage, setAddStage] = useState<string | null>(null);
+  const [addStage, setAddStage] = useState<number | null>(null);
   // Στάδιο επεξεργασίας ανά αρχείο για την Ενημέρωση — fileId -> στάδιο.
-  const [updateStages, setUpdateStages] = useState<Record<string, string>>({});
+  const [updateStages, setUpdateStages] = useState<Record<string, number>>({});
 
   function markInFlight(key: string) {
     setInFlight((current) => new Set(current).add(key));
@@ -137,8 +141,9 @@ export function SourcesTab({
           }
           stillRunning = true;
           markInFlight(key);
-          if (!job.fileId) setAddStage(job.stage);
-          else setUpdateStages((s) => ({ ...s, [job.fileId!]: job.stage }));
+          const percent = toPercent(job.stage, job.percent);
+          if (!job.fileId) setAddStage(percent);
+          else setUpdateStages((s) => ({ ...s, [job.fileId!]: percent }));
         }
 
         if (stillRunning) timer = setTimeout(poll, 1000);
@@ -159,13 +164,13 @@ export function SourcesTab({
     setError(null);
     setNotice(null);
     markInFlight('add');
-    setAddStage('parsing');
+    setAddStage(10);
     try {
       await api.uploadStreamed(
         `/projects/${project.id}/files`,
         file,
         selectedFolderId ? { folderId: selectedFolderId } : {},
-        setAddStage,
+        (stage, percent) => setAddStage(toPercent(stage, percent)),
       );
       reload();
       onChanged();
@@ -182,13 +187,13 @@ export function SourcesTab({
     setNotice(null);
     const key = `update:${fileId}`;
     markInFlight(key);
-    setUpdateStages((s) => ({ ...s, [fileId]: 'parsing' }));
+    setUpdateStages((s) => ({ ...s, [fileId]: 10 }));
     try {
       const result = await api.uploadStreamed<{ added: number; changed: number; removed: number }>(
         `/projects/${project.id}/files/${fileId}/revisions`,
         file,
         {},
-        (stage) => setUpdateStages((s) => ({ ...s, [fileId]: stage })),
+        (stage, percent) => setUpdateStages((s) => ({ ...s, [fileId]: toPercent(stage, percent) })),
       );
       setNotice(el.sources.updated(result.added, result.changed, result.removed));
       reload();
@@ -216,6 +221,18 @@ export function SourcesTab({
     }
   }
 
+  async function handleDeleteFolder(folder: FolderNode) {
+    if (!confirm(el.sources.confirmDeleteFolder(folder.name))) return;
+    try {
+      await api.delete(`/projects/${project.id}/files/folders/${folder.id}`);
+      setSelectedFolderId(null);
+      reload();
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiRequestError ? err.message : el.app.error);
+    }
+  }
+
   if (!data) return <div className="card muted">{el.app.loading}</div>;
 
   // Αν διαγράφηκε ο επιλεγμένος φάκελος από άλλη ενέργεια, γυρίζουμε στη ρίζα.
@@ -223,6 +240,7 @@ export function SourcesTab({
     selectedFolderId === null || data.folders.some((f) => f.id === selectedFolderId);
   const activeFolderId = validSelection ? selectedFolderId : null;
   const visibleFiles = data.files.filter((f) => f.folderId === activeFolderId);
+  const activeFolder = data.folders.find((f) => f.id === activeFolderId) ?? null;
 
   return (
     <div>
@@ -232,7 +250,7 @@ export function SourcesTab({
         <div>
           {inFlight.has('add') && (
             <span className="row" style={{ gap: '0.4rem', alignItems: 'center' }}>
-              <StagePercentBar stage={addStage} />
+              <StagePercentBar percent={addStage ?? 10} />
               <ThreeDots color="#32cd32" height={20} width={20} />
               <span className="badge success">{el.sources.processing}</span>
             </span>
@@ -242,6 +260,21 @@ export function SourcesTab({
         </div>
         {isManager && (
           <div className="row">
+            {activeFolder && (
+              <>
+                <button className="ghost icon-btn" onClick={() => setRenamingFolder(activeFolder)}>
+                  <Icon name="edit" />
+                  {el.sources.renameFolder}
+                </button>
+                <button
+                  className="ghost danger icon-btn"
+                  onClick={() => void handleDeleteFolder(activeFolder)}
+                >
+                  <Icon name="delete" />
+                  {el.sources.deleteFolder}
+                </button>
+              </>
+            )}
             <button className="icon-btn" onClick={() => setCreatingFolder(true)}>
               <Icon name="folder" />
               {el.sources.newFolder}
@@ -375,7 +408,7 @@ export function SourcesTab({
                               <div className="row" style={{ justifyContent: 'flex-end', alignItems: 'center' }}>
                                 {inFlight.has(`update:${file.id}`) && (
                                   <>
-                                    <StagePercentBar stage={updateStages[file.id] ?? null} />
+                                    <StagePercentBar percent={updateStages[file.id] ?? 10} />
                                     <ThreeDots color="#32cd32" height={18} width={18} />
                                     <span className="badge success">{el.sources.processing}</span>
                                   </>
@@ -392,6 +425,15 @@ export function SourcesTab({
                                   {inFlight.has(`update:${file.id}`)
                                     ? el.app.loading
                                     : el.sources.update}
+                                </button>
+                                <button
+                                  className="ghost icon-btn"
+                                  onClick={() => setMovingFile(file)}
+                                  title={el.sources.moveFile}
+                                  disabled={inFlight.has(`update:${file.id}`)}
+                                >
+                                  <Icon name="folder" />
+                                  {el.sources.move}
                                 </button>
                                 <button
                                   className="ghost danger"
@@ -416,12 +458,38 @@ export function SourcesTab({
       )}
 
       {creatingFolder && (
-        <NewFolderModal
+        <FolderNameModal
           projectId={project.id}
           onClose={() => setCreatingFolder(false)}
-          onCreated={(folder) => {
+          onSaved={(folder) => {
             setCreatingFolder(false);
             setSelectedFolderId(folder.id);
+            reload();
+          }}
+        />
+      )}
+
+      {renamingFolder && (
+        <FolderNameModal
+          projectId={project.id}
+          folder={renamingFolder}
+          onClose={() => setRenamingFolder(null)}
+          onSaved={() => {
+            setRenamingFolder(null);
+            reload();
+          }}
+        />
+      )}
+
+      {movingFile && (
+        <MoveFileModal
+          projectId={project.id}
+          file={movingFile}
+          folders={data.folders}
+          onClose={() => setMovingFile(null)}
+          onMoved={(folderId) => {
+            setMovingFile(null);
+            setSelectedFolderId(folderId);
             reload();
           }}
         />
@@ -459,16 +527,19 @@ function FolderRow({
   );
 }
 
-function NewFolderModal({
+/** Νέος φάκελος, ή μετονομασία όταν δοθεί `folder`. */
+function FolderNameModal({
   projectId,
+  folder,
   onClose,
-  onCreated,
+  onSaved,
 }: {
   projectId: string;
+  folder?: FolderNode;
   onClose: () => void;
-  onCreated: (folder: FolderNode) => void;
+  onSaved: (folder: FolderNode) => void;
 }) {
-  const [name, setName] = useState('');
+  const [name, setName] = useState(folder?.name ?? '');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -477,8 +548,10 @@ function NewFolderModal({
     setError(null);
     setBusy(true);
     try {
-      const folder = await api.post<FolderNode>(`/projects/${projectId}/files/folders`, { name });
-      onCreated(folder);
+      const saved = folder
+        ? await api.patch<FolderNode>(`/projects/${projectId}/files/folders/${folder.id}`, { name })
+        : await api.post<FolderNode>(`/projects/${projectId}/files/folders`, { name });
+      onSaved(saved);
     } catch (err) {
       setError(err instanceof ApiRequestError ? err.message : el.app.error);
       setBusy(false);
@@ -486,7 +559,7 @@ function NewFolderModal({
   }
 
   return (
-    <Modal title={el.sources.newFolder} onClose={onClose}>
+    <Modal title={folder ? el.sources.renameFolder : el.sources.newFolder} onClose={onClose}>
       <form onSubmit={onSubmit}>
         <div className="field">
           <label htmlFor="folder-name">{el.sources.folderName}</label>
@@ -505,9 +578,76 @@ function NewFolderModal({
             <Icon name="cancel" />
             {el.app.cancel}
           </button>
-          <button type="submit" className="primary icon-btn" disabled={busy || !name.trim()}>
+          <button
+            type="submit"
+            className="primary icon-btn"
+            disabled={busy || !name.trim() || name.trim() === folder?.name}
+          >
             <Icon name="save" />
             {busy ? el.app.loading : el.app.save}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function MoveFileModal({
+  projectId,
+  file,
+  folders,
+  onClose,
+  onMoved,
+}: {
+  projectId: string;
+  file: SourceFileSummary;
+  folders: FolderNode[];
+  onClose: () => void;
+  onMoved: (folderId: string | null) => void;
+}) {
+  // '' = «Χωρίς φάκελο» (το <select> δεν δέχεται null ως τιμή).
+  const [target, setTarget] = useState(file.folderId ?? '');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const unchanged = target === (file.folderId ?? '');
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      const folderId = target || null;
+      await api.patch(`/projects/${projectId}/files/${file.id}/move`, { folderId });
+      onMoved(folderId);
+    } catch (err) {
+      setError(err instanceof ApiRequestError ? err.message : el.app.error);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title={el.sources.moveTitle(file.name)} onClose={onClose}>
+      <form onSubmit={onSubmit}>
+        <div className="field">
+          <label htmlFor="move-target">{el.sources.moveTo}</label>
+          <select id="move-target" value={target} onChange={(e) => setTarget(e.target.value)} autoFocus>
+            <option value="">{el.sources.rootFolder}</option>
+            {folders.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        {error && <div className="field-error">{error}</div>}
+        <div className="row" style={{ justifyContent: 'flex-end' }}>
+          <button type="button" className="icon-btn" onClick={onClose} disabled={busy}>
+            <Icon name="cancel" />
+            {el.app.cancel}
+          </button>
+          <button type="submit" className="primary icon-btn" disabled={busy || unchanged}>
+            <Icon name="folder" />
+            {busy ? el.app.loading : el.sources.move}
           </button>
         </div>
       </form>

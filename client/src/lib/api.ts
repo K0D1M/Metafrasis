@@ -141,7 +141,7 @@ export const api = {
     path: string,
     file: File,
     extra: Record<string, string>,
-    onStage: (stage: string) => void,
+    onStage: (stage: string, percent?: number) => void,
   ): Promise<T> {
     const form = new FormData();
     form.append('file', file);
@@ -181,7 +181,7 @@ export const api = {
           const { stage: _stage, ...rest } = parsed;
           return rest as T;
         }
-        onStage(parsed.stage);
+        onStage(parsed.stage, typeof parsed.percent === 'number' ? parsed.percent : undefined);
       }
     }
 

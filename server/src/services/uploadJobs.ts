@@ -17,14 +17,20 @@ export function startJob(
   jobKey: string,
   info: { projectId: string; fileName: string; fileId?: string },
 ): void {
-  jobs.set(jobKey, { ...info, stage: 'parsing' });
+  jobs.set(jobKey, { ...info, stage: 'parsing', percent: 10 });
 }
 
-export function updateJob(jobKey: string, stage: UploadJobStage, error?: string): void {
+export function updateJob(
+  jobKey: string,
+  stage: UploadJobStage,
+  error?: string,
+  percent?: number,
+): void {
   const job = jobs.get(jobKey);
   if (job) {
     job.stage = stage;
     if (error) job.error = error;
+    if (percent !== undefined) job.percent = percent;
   }
 }
 

@@ -4,6 +4,8 @@
  * του αλφαβήτου της γλώσσας-στόχου (βλ. LANGUAGE_SCRIPT_PATTERN πιο κάτω). Ένα πεδίο
  * με κενά ή με κείμενο σε λάθος γλώσσα δεν πρέπει να μετράει ως μεταφρασμένο.
  *
+ * Ένα αρχείο σημασμένο completed μετρά ολόκληρο ως μεταφρασμένο.
+ *
  * Εξαιρέσεις: ένα κείμενο «Χρειάζεται έλεγχος» δεν μετρά μέχρι να ελεγχθεί, ενώ ένα
  * σημασμένο «δεν χρειάζεται μετάφραση» (skipped) μετρά χωρίς κείμενο. Ίδιος κανόνας με
  * το isDone() στο client/src/pages/StringEditor.tsx.
@@ -52,12 +54,17 @@ export async function progressByFile(
     JOIN "SourceFile" sf ON sf.id = ss."fileId"
     WHERE sf."projectId" = ${projectId}
       AND ss.removed = false
-      AND ss."needsReview" = false
-      AND EXISTS (
-        SELECT 1 FROM "Translation" t
-        WHERE t."stringId" = ss.id
-          AND t.language = ${language}
-          AND (t.skipped OR t.text ~ ${pattern})
+      AND (
+        sf.completed
+        OR (
+          ss."needsReview" = false
+          AND EXISTS (
+            SELECT 1 FROM "Translation" t
+            WHERE t."stringId" = ss.id
+              AND t.language = ${language}
+              AND (t.skipped OR t.text ~ ${pattern})
+          )
+        )
       )
     GROUP BY ss."fileId"
   `;
@@ -86,12 +93,17 @@ export async function projectProgress(
       JOIN "SourceFile" sf ON sf.id = ss."fileId"
       WHERE sf."projectId" = ${projectId}
         AND ss.removed = false
-        AND ss."needsReview" = false
-        AND EXISTS (
-          SELECT 1 FROM "Translation" t
-          WHERE t."stringId" = ss.id
-            AND t.language = ${language}
-            AND (t.skipped OR t.text ~ ${pattern})
+        AND (
+          sf.completed
+          OR (
+            ss."needsReview" = false
+            AND EXISTS (
+              SELECT 1 FROM "Translation" t
+              WHERE t."stringId" = ss.id
+                AND t.language = ${language}
+                AND (t.skipped OR t.text ~ ${pattern})
+            )
+          )
         )
     `,
   ]);

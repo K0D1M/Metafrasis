@@ -118,6 +118,10 @@ export const createFolderSchema = z.object({
 });
 export type CreateFolderInput = z.infer<typeof createFolderSchema>;
 
+export const renameFolderSchema = z.object({ name: z.string().trim().min(1, 'Απαιτείται όνομα').max(100) });
+
+export const moveFileSchema = z.object({ folderId: z.string().nullable() });
+
 export interface FolderNode {
   id: string;
   name: string;
@@ -144,6 +148,8 @@ export interface UploadJob {
   projectId: string;
   fileName: string;
   stage: UploadJobStage;
+  /** Συνολική πρόοδος 0–100, όπως την αναφέρει ο server. */
+  percent?: number;
   error?: string;
   /** Παρόν μόνο για Ενημέρωση υπάρχοντος αρχείου· απόν για νέο ανέβασμα (add). */
   fileId?: string;
@@ -350,6 +356,9 @@ export const ActivityAction = {
   FILE_UPDATE: 'file.update',
   FILE_DELETE: 'file.delete',
   FOLDER_CREATE: 'folder.create',
+  FOLDER_RENAME: 'folder.rename',
+  FOLDER_DELETE: 'folder.delete',
+  FILE_MOVE: 'file.move',
   TRANSLATION_SAVE: 'translation.save',
   COMMENT_ADD: 'comment.add',
   MEMBER_INVITE: 'member.invite',

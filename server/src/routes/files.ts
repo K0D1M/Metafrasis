@@ -2,9 +2,12 @@ import { Router, type Response } from 'express';
 import multer from 'multer';
 import {
   createFolderSchema,
+  renameFolderSchema,
+  moveFileSchema,
   type FolderNode,
   type SourceFileSummary,
 } from '@metafrasis/shared';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../db.js';
 import { requireProjectRole } from '../auth.js';
 import { parseJsonUpload, planIngest } from '../services/ingest.js';
@@ -60,6 +63,82 @@ filesRouter.post('/folders', requireProjectRole({ managerOnly: true }), async (r
   } satisfies FolderNode);
 });
 
+filesRouter.patch('/folders/:folderId', requireProjectRole({ managerOnly: true }), async (req, res) => {
+  const parsed = renameFolderSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Μη έγκυρο όνομα φακέλου' });
+    return;
+  }
+  const folder = await prisma.folder.findFirst({
+    where: { id: req.params.folderId, projectId: req.params.projectId },
+  });
+  if (!folder) {
+    res.status(404).json({ error: 'Ο φάκελος δεν βρέθηκε' });
+    return;
+  }
+
+  const updated = await prisma.folder.update({ where: { id: folder.id }, data: { name: parsed.data.name } });
+  await logActivity({
+    projectId: req.params.projectId!,
+    userId: req.userId!,
+    action: ActivityAction.FOLDER_RENAME,
+    target: `${folder.name} → ${updated.name}`,
+  });
+  res.json({ id: updated.id, name: updated.name, parentId: updated.parentId } satisfies FolderNode);
+});
+
+/** Διαγραφή φακέλου: τα αρχεία του ΔΕΝ σβήνονται — πάνε στο «Χωρίς φάκελο» (onDelete: SetNull). */
+filesRouter.delete('/folders/:folderId', requireProjectRole({ managerOnly: true }), async (req, res) => {
+  const folder = await prisma.folder.findFirst({
+    where: { id: req.params.folderId, projectId: req.params.projectId },
+  });
+  if (!folder) {
+    res.status(404).json({ error: 'Ο φάκελος δεν βρέθηκε' });
+    return;
+  }
+
+  await prisma.folder.delete({ where: { id: folder.id } });
+  await logActivity({
+    projectId: req.params.projectId!,
+    userId: req.userId!,
+    action: ActivityAction.FOLDER_DELETE,
+    target: folder.name,
+  });
+  res.status(204).end();
+});
+
+/** Μετακίνηση αρχείου σε άλλο φάκελο (ή στο «Χωρίς φάκελο» με folderId: null). */
+filesRouter.patch('/:fileId/move', requireProjectRole({ managerOnly: true }), async (req, res) => {
+  const parsed = moveFileSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Μη έγκυρος φάκελος' });
+    return;
+  }
+  const projectId = req.params.projectId!;
+  const file = await prisma.sourceFile.findFirst({ where: { id: req.params.fileId, projectId } });
+  if (!file) {
+    res.status(404).json({ error: 'Το αρχείο δεν βρέθηκε' });
+    return;
+  }
+  const { folderId } = parsed.data;
+  const target = folderId
+    ? await prisma.folder.findFirst({ where: { id: folderId, projectId } })
+    : null;
+  if (folderId && !target) {
+    res.status(404).json({ error: 'Ο φάκελος δεν βρέθηκε' });
+    return;
+  }
+
+  await prisma.sourceFile.update({ where: { id: file.id }, data: { folderId } });
+  await logActivity({
+    projectId,
+    userId: req.userId!,
+    action: ActivityAction.FILE_MOVE,
+    target: `${file.name} → ${target?.name ?? 'Χωρίς φάκελο'}`,
+  });
+  res.status(204).end();
+});
+
 /* ── Περιεχόμενα της καρτέλας Πηγές ────────────────────────────────────────── */
 
 filesRouter.get('/', requireProjectRole(), async (req, res) => {
@@ -111,6 +190,19 @@ filesRouter.get('/', requireProjectRole(), async (req, res) => {
 
 export type IngestStage = 'parsing' | 'diffing' | 'saving';
 
+/** Ποσοστό συνολικής προόδου ανά στάδιο· η αποθήκευση γεμίζει το διάστημα 30–90 σταδιακά. */
+const PROGRESS = { parsing: 10, diffing: 25, savingStart: 30, savingEnd: 90, adopting: 95 } as const;
+
+/** Γραμμές ανά ερώτημα: αρκετά μεγάλο για λίγα round trips, αρκετά μικρό για τακτική πρόοδο
+ * και για το όριο 32.767 παραμέτρων του Postgres (έως 4 παράμετροι ανά γραμμή). */
+const WRITE_CHUNK = 1000;
+
+function chunks<T>(items: T[]): T[][] {
+  const result: T[][] = [];
+  for (let i = 0; i < items.length; i += WRITE_CHUNK) result.push(items.slice(i, i + WRITE_CHUNK));
+  return result;
+}
+
 /** Κοινή διαδρομή για πρώτο ανέβασμα και για Ενημέρωση υπάρχοντος αρχείου. */
 async function ingestUpload(params: {
   projectId: string;
@@ -119,7 +211,7 @@ async function ingestUpload(params: {
   name: string;
   content: JsonValue;
   userId: string;
-  onProgress?: (stage: IngestStage) => void;
+  onProgress?: (stage: IngestStage, percent: number) => void;
 }): Promise<{ fileId: string; revision: number; added: number; changed: number; removed: number }> {
   const { projectId, folderId, name, content, userId, onProgress } = params;
 
@@ -132,15 +224,23 @@ async function ingestUpload(params: {
 
   const existing = await prisma.sourceString.findMany({
     where: { fileId: file.id },
-    select: { key: true, sourceText: true, removed: true },
+    select: { key: true, sourceText: true, removed: true, order: true },
   });
 
-  onProgress?.('diffing');
+  onProgress?.('diffing', PROGRESS.diffing);
   const plan = planIngest(
     content,
     existing.map((s) => ({ key: s.key, sourceText: s.sourceText })),
     new Set(existing.filter((s) => s.removed).map((s) => s.key)),
   );
+
+  // Ένα αμετάβλητο κείμενο χρειάζεται εγγραφή μόνο αν άλλαξε θέση ή επανέρχεται από
+  // removed — αλλιώς η Ενημέρωση ενός αρχείου 20.000 κειμένων θα τα ξανάγραφε όλα.
+  const existingByKey = new Map(existing.map((s) => [s.key, s]));
+  const moved = plan.unchanged.filter((u) => {
+    const prior = existingByKey.get(u.key);
+    return !prior || prior.order !== u.order || prior.removed;
+  });
 
   const lastVersion = await prisma.fileVersion.findFirst({
     where: { fileId: file.id },
@@ -148,48 +248,85 @@ async function ingestUpload(params: {
   });
   const revision = (lastVersion?.revision ?? 0) + 1;
 
-  onProgress?.('saving');
-  await prisma.$transaction([
-    prisma.fileVersion.create({
-      data: { fileId: file.id, revision, uploadedBy: userId, rawJson: JSON.stringify(content) },
-    }),
+  const addedChunks = chunks(plan.added);
+  const changedChunks = chunks(plan.changed);
+  const movedChunks = chunks(moved);
+  const removedChunks = chunks(plan.removed);
+  const totalSteps =
+    1 + addedChunks.length + changedChunks.length + movedChunks.length + removedChunks.length;
+  let doneSteps = 0;
+  const step = () => {
+    doneSteps += 1;
+    const span = PROGRESS.savingEnd - PROGRESS.savingStart;
+    onProgress?.('saving', Math.round(PROGRESS.savingStart + (span * doneSteps) / totalSteps));
+  };
 
-    ...plan.added.map((a) =>
-      prisma.sourceString.create({
-        data: { fileId: file.id, key: a.key, sourceText: a.sourceText, order: a.order },
-      }),
-    ),
+  onProgress?.('saving', PROGRESS.savingStart);
+  // Μία συναλλαγή για όλη την εισαγωγή: αν αποτύχει κάτι στη μέση, δεν μένει μισή αναθεώρηση.
+  await prisma.$transaction(
+    async (tx) => {
+      await tx.fileVersion.create({
+        data: { fileId: file.id, revision, uploadedBy: userId, rawJson: JSON.stringify(content) },
+      });
+      step();
 
-    // Το πρωτότυπο άλλαξε: κρατάμε τη μετάφραση αλλά τη σημαιοδοτούμε για έλεγχο.
-    ...plan.changed.map((c) =>
-      prisma.sourceString.update({
-        where: { fileId_key: { fileId: file.id, key: c.key } },
-        data: { sourceText: c.sourceText, order: c.order, needsReview: true, removed: false },
-      }),
-    ),
+      for (const chunk of addedChunks) {
+        await tx.sourceString.createMany({
+          data: chunk.map((a) => ({ fileId: file.id, key: a.key, sourceText: a.sourceText, order: a.order })),
+        });
+        step();
+      }
 
-    ...plan.unchanged.map((u) =>
-      prisma.sourceString.update({
-        where: { fileId_key: { fileId: file.id, key: u.key } },
-        data: { order: u.order, removed: false },
-      }),
-    ),
+      // Το πρωτότυπο άλλαξε: κρατάμε τη μετάφραση αλλά τη σημαιοδοτούμε για έλεγχο.
+      for (const chunk of changedChunks) {
+        const rows = Prisma.join(chunk.map((c) => Prisma.sql`(${c.key}, ${c.sourceText}, ${c.order}::int)`));
+        await tx.$executeRaw`
+          UPDATE "SourceString" AS s
+          SET "sourceText" = v.text, "order" = v.ord, "needsReview" = true, removed = false
+          FROM (VALUES ${rows}) AS v(key, text, ord)
+          WHERE s."fileId" = ${file.id} AND s.key = v.key`;
+        step();
+      }
 
-    // Σημαιοδότηση, ποτέ διαγραφή: το κλειδί μπορεί να επανέλθει με τη μετάφρασή του.
-    ...plan.removed.map((key) =>
-      prisma.sourceString.update({
-        where: { fileId_key: { fileId: file.id, key } },
-        data: { removed: true },
-      }),
-    ),
-  ]);
+      for (const chunk of movedChunks) {
+        const rows = Prisma.join(chunk.map((u) => Prisma.sql`(${u.key}, ${u.order}::int)`));
+        await tx.$executeRaw`
+          UPDATE "SourceString" AS s
+          SET "order" = v.ord, removed = false
+          FROM (VALUES ${rows}) AS v(key, ord)
+          WHERE s."fileId" = ${file.id} AND s.key = v.key`;
+        step();
+      }
 
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: { targetLanguages: true },
-  });
-  for (const language of JSON.parse(project?.targetLanguages ?? '[]') as string[]) {
-    await adoptPretranslated(file.id, language, userId);
+      // Σημαιοδότηση, ποτέ διαγραφή: το κλειδί μπορεί να επανέλθει με τη μετάφρασή του.
+      for (const chunk of removedChunks) {
+        await tx.sourceString.updateMany({
+          where: { fileId: file.id, key: { in: chunk } },
+          data: { removed: true },
+        });
+        step();
+      }
+    },
+    // Ένα μεγάλο αρχείο χρειάζεται πολύ περισσότερο από το προεπιλεγμένο όριο των 5s.
+    { maxWait: 10_000, timeout: 10 * 60_000 },
+  );
+
+  onProgress?.('saving', PROGRESS.adopting);
+  // Ένα ολοκληρωμένο αρχείο παύει να είναι μόλις μια Ενημέρωση φέρει νέα ή αλλαγμένα κείμενα.
+  let completed = file.completed;
+  if (completed && (plan.added.length > 0 || plan.changed.length > 0)) {
+    await prisma.sourceFile.update({ where: { id: file.id }, data: { completed: false } });
+    completed = false;
+  }
+  // Όσο είναι ολοκληρωμένο δεν χρειάζονται μεταφράσεις — ούτε αποδίδονται σε κάποιον.
+  if (!completed) {
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { targetLanguages: true },
+    });
+    for (const language of JSON.parse(project?.targetLanguages ?? '[]') as string[]) {
+      await adoptPretranslated(file.id, language, userId);
+    }
   }
 
   return {
@@ -248,7 +385,7 @@ filesRouter.post(
     const emit = ndjsonEmitter(res);
     startJob(jobKey, { projectId, fileName: req.file.originalname });
     try {
-      emit('parsing');
+      emit('parsing', { percent: 10 });
       const content = parseJsonUpload(req.file.buffer);
       const result = await ingestUpload({
         projectId,
@@ -257,9 +394,9 @@ filesRouter.post(
         name: req.file.originalname,
         content,
         userId: req.userId!,
-        onProgress: (stage) => {
-          emit(stage);
-          updateJob(jobKey, stage);
+        onProgress: (stage, percent) => {
+          emit(stage, { percent });
+          updateJob(jobKey, stage, undefined, percent);
         },
       });
       await logActivity({
@@ -315,7 +452,7 @@ filesRouter.post(
     const emit = ndjsonEmitter(res);
     startJob(jobKey, { projectId, fileId: file.id, fileName: file.name });
     try {
-      emit('parsing');
+      emit('parsing', { percent: 10 });
       const content = parseJsonUpload(req.file.buffer);
       const result = await ingestUpload({
         projectId,
@@ -324,9 +461,9 @@ filesRouter.post(
         name: file.name,
         content,
         userId: req.userId!,
-        onProgress: (stage) => {
-          emit(stage);
-          updateJob(jobKey, stage);
+        onProgress: (stage, percent) => {
+          emit(stage, { percent });
+          updateJob(jobKey, stage, undefined, percent);
         },
       });
       await logActivity({

@@ -13,6 +13,8 @@ import { useAuth } from '../lib/auth.js';
 
 interface StringsResponse {
   fileName: string;
+  /** Το αρχείο σημάνθηκε ολοκληρωμένο: όλα τα κείμενα μετρούν ως μεταφρασμένα. */
+  completed: boolean;
   language: string;
   strings: SourceStringView[];
 }
@@ -35,7 +37,8 @@ function isActuallyTranslated(text: string | null | undefined, language: string)
 
 /** Ίδιος κανόνας με το server/src/services/progress.ts: ένα «Χρειάζεται έλεγχος» δεν
  * μετρά μέχρι να ελεγχθεί· ένα «δεν χρειάζεται μετάφραση» μετρά χωρίς κείμενο. */
-function isDone(item: SourceStringView, language: string): boolean {
+function isDone(item: SourceStringView, language: string, fileCompleted = false): boolean {
+  if (fileCompleted) return true;
   if (item.needsReview) return false;
   return item.skipped || isActuallyTranslated(item.translation, language);
 }
@@ -90,7 +93,7 @@ export function StringEditor() {
       if (expiresAt <= now) recentlyCompletedRef.current.delete(id);
     }
     let result = onlyUntranslated
-      ? data.strings.filter((s) => !isDone(s, data.language) || recentlyCompletedRef.current.has(s.id))
+      ? data.strings.filter((s) => !isDone(s, data.language, data.completed) || recentlyCompletedRef.current.has(s.id))
       : data.strings;
     if (query) {
       result = result.filter(
@@ -195,10 +198,10 @@ export function StringEditor() {
         const updated = { ...s, ...patch };
         // Μόλις ένα string γίνει done ενώ η σελίδα είναι ανοιχτή, παίρνει χρόνο χάριτος
         // πριν εξαφανιστεί από τη λίστα «Μη μεταφρασμένα» — βλ. UNTRANSLATED_GRACE_MS.
-        if (!isDone(s, current.language) && isDone(updated, current.language)) {
+        if (!isDone(s, current.language, current.completed) && isDone(updated, current.language, current.completed)) {
           recentlyCompletedRef.current.set(id, Date.now() + UNTRANSLATED_GRACE_MS);
           setGraceTick((t) => t + 1);
-        } else if (!isDone(updated, current.language)) {
+        } else if (!isDone(updated, current.language, current.completed)) {
           // Ξαναέγινε μη μεταφρασμένο (π.χ. σβήστηκε το κείμενο) — δεν χρειάζεται πια χάρη.
           recentlyCompletedRef.current.delete(id);
         }
@@ -216,7 +219,7 @@ export function StringEditor() {
       </div>
     );
 
-  const translated = data.strings.filter((s) => isDone(s, data.language)).length;
+  const translated = data.strings.filter((s) => isDone(s, data.language, data.completed)).length;
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '1.5rem 1rem' }}>

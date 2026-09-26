@@ -61,6 +61,7 @@ stringsRouter.get('/files/:fileId/strings', requireProjectRole(), async (req, re
 
   res.json({
     fileName: file.name,
+    completed: file.completed,
     language,
     strings: strings.map(
       (s): SourceStringView => ({
