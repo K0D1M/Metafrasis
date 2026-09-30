@@ -8,6 +8,7 @@ export const el = {
     iconCredit: 'Εικονίδιο: Loritas Medina, Noun Project',
     updateAvailable: 'Νέα έκδοση διαθέσιμη',
     updateReload: 'Ανανέωση',
+    updateSafe: 'Οι αποθηκευμένες μεταφράσεις σου δεν χάνονται.',
     updateLater: 'Αργότερα',
     loading: 'Φόρτωση…',
     save: 'Αποθήκευση',
