@@ -5,6 +5,7 @@ import { el } from '../i18n/el.js';
 import { api, ApiRequestError } from '../lib/api.js';
 import { useAuth } from '../lib/auth.js';
 import { AccountMenu, AdminLink, EmptyState, Modal, ProgressBar, ThemeToggle } from '../components/common.js';
+import { Logo } from '../components/Logo.js';
 import { NotificationBell } from '../components/NotificationBell.js';
 import { Icon } from '../components/Icon.js';
 
@@ -20,7 +21,7 @@ export function ProjectList() {
   return (
     <div style={{ maxWidth: 900, margin: '0 auto', padding: '1.5rem 1rem' }}>
       <div className="spread" style={{ marginBottom: '1.5rem' }}>
-        <h1 style={{ margin: 0 }}>{el.app.name}</h1>
+        <h1 style={{ margin: 0 }}><Logo /></h1>
         <div className="row">
           <AdminLink />
           <ThemeToggle />

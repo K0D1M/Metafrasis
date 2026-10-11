@@ -4,6 +4,7 @@ import type { PasswordResetResult } from '@metafrasis/shared';
 import { el } from '../i18n/el.js';
 import { api, ApiRequestError } from '../lib/api.js';
 import { ThemeToggle } from '../components/common.js';
+import { Logo } from '../components/Logo.js';
 import { Icon } from '../components/Icon.js';
 
 /**
@@ -53,7 +54,7 @@ export function ForgotPassword() {
   return (
     <div style={{ maxWidth: 380, margin: '4rem auto', padding: '0 1rem' }}>
       <div className="spread" style={{ marginBottom: '1.5rem' }}>
-        <h1 style={{ margin: 0 }}>{el.app.name}</h1>
+        <h1 style={{ margin: 0 }}><Logo /></h1>
         <ThemeToggle />
       </div>
 
