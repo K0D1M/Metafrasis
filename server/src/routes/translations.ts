@@ -39,22 +39,51 @@ translationsRouter.get('/download', requireProjectRole(), async (req, res) => {
 
   const language = (req.query.language as string) || primaryTarget(project.targetLanguages);
 
-  const files = await prisma.sourceFile.findMany({
-    where: { projectId },
-    include: {
-      folder: { select: { name: true } },
-      versions: { orderBy: { revision: 'desc' }, take: 1 },
-      strings: { include: { translations: { where: { language } } } },
-    },
-  });
+  // Τρία στοχευμένα ερωτήματα αντί για ένα εμφωλευμένο include. Το include φόρτωνε κάθε
+  // SourceString με όλες τις στήλες του και έστελνε τα ids τους ως παραμέτρους για τις
+  // μεταφράσεις — αργό, και πάνω από ~32.000 κείμενα αποτύγχανε εντελώς (όριο Postgres
+  // στις bind variables). Εδώ φέρνουμε μόνο ό,τι χρειάζεται η εξαγωγή.
+  const [files, latestVersions, translationRows] = await Promise.all([
+    prisma.sourceFile.findMany({
+      where: { projectId },
+      select: { id: true, name: true, folder: { select: { name: true } } },
+    }),
+    // Μόνο η τελευταία αναθεώρηση κάθε αρχείου — όχι όλο το ιστορικό rawJson.
+    prisma.$queryRaw<Array<{ fileId: string; rawJson: string }>>`
+      SELECT DISTINCT ON (fv."fileId") fv."fileId" AS "fileId", fv."rawJson" AS "rawJson"
+      FROM "FileVersion" fv
+      JOIN "SourceFile" sf ON sf.id = fv."fileId"
+      WHERE sf."projectId" = ${projectId}
+      ORDER BY fv."fileId", fv.revision DESC
+    `,
+    prisma.$queryRaw<Array<{ fileId: string; key: string; text: string }>>`
+      SELECT ss."fileId" AS "fileId", ss.key AS key, t.text AS text
+      FROM "Translation" t
+      JOIN "SourceString" ss ON ss.id = t."stringId"
+      JOIN "SourceFile" sf ON sf.id = ss."fileId"
+      WHERE sf."projectId" = ${projectId}
+        AND t.language = ${language}
+        AND t.text <> ''
+    `,
+  ]);
 
-  const usable = files.filter((file) => file.versions[0]);
+  const rawJsonByFile = new Map(latestVersions.map((v) => [v.fileId, v.rawJson]));
+  const translationsByFile = new Map<string, Map<string, string>>();
+  for (const row of translationRows) {
+    let map = translationsByFile.get(row.fileId);
+    if (!map) translationsByFile.set(row.fileId, (map = new Map()));
+    map.set(row.key, row.text);
+  }
+
+  const usable = files.filter((file) => rawJsonByFile.has(file.id));
   if (usable.length === 0) {
     res.status(404).json({ error: 'Δεν υπάρχουν αρχεία για εξαγωγή' });
     return;
   }
 
-  const archive = archiver('zip', { zlib: { level: 9 } });
+  // Επίπεδο 6 (το προεπιλεγμένο του zlib): σχεδόν ίδιο μέγεθος για JSON κείμενο, λιγότερη
+  // CPU από το 9.
+  const archive = archiver('zip', { zlib: { level: 6 } });
 
   // Τα headers φεύγουν πριν το πρώτο byte· ένα σφάλμα μετά από αυτό δεν μπορεί πια
   // να γίνει JSON απάντηση, οπότε το μόνο που μένει είναι να κλείσουμε τη σύνδεση.
@@ -68,14 +97,8 @@ translationsRouter.get('/download', requireProjectRole(), async (req, res) => {
   archive.pipe(res);
 
   for (const file of usable) {
-    const translations = new Map(
-      file.strings
-        .filter((s) => s.translations[0]?.text)
-        .map((s) => [s.key, s.translations[0]!.text]),
-    );
-
-    const source = JSON.parse(file.versions[0]!.rawJson) as JsonValue;
-    const output = unflatten(flatten(source), translations);
+    const source = JSON.parse(rawJsonByFile.get(file.id)!) as JsonValue;
+    const output = unflatten(flatten(source), translationsByFile.get(file.id));
 
     // Ο φάκελος του project διατηρείται μέσα στο zip.
     const path = file.folder ? `${file.folder.name}/${file.name}` : file.name;

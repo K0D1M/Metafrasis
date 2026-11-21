@@ -46,7 +46,10 @@ function isDone(item: SourceStringView, language: string, fileCompleted = false)
 /** Χρόνος χάριτος πριν ένα μόλις ολοκληρωμένο κείμενο εξαφανιστεί από τη λίστα «Μη
  * μεταφρασμένα» — ώστε ο μεταφραστής να προλάβει να διορθώσει κάτι χωρίς να χάσει τη
  * θέση του στη λίστα. Αφορά μόνο αυτή τη φιλτραρισμένη προβολή στον client· η πρόοδος
- * (μπάρες, σύνολα project) ενημερώνεται κανονικά, αμέσως. */
+ * (μπάρες, σύνολα project) ενημερώνεται κανονικά, αμέσως.
+ *
+ * Με την προσωπική ρύθμιση hideCompletedStrings = false η χάρη δεν λήγει ποτέ: το κείμενο
+ * μένει στη λίστα μέχρι ο χρήστης να ξαναπατήσει το φίλτρο ή να ανανεώσει τη σελίδα. */
 const UNTRANSLATED_GRACE_MS = 15_000;
 
 type SortMode = 'order' | 'key' | 'source' | 'recent';
@@ -83,6 +86,23 @@ export function StringEditor() {
   // εμφανίζεται καθόλου στο φίλτρο.
   const recentlyCompletedRef = useRef<Map<string, number>>(new Map());
   const [graceTick, setGraceTick] = useState(0);
+  const { user } = useAuth();
+  const hideCompleted = user?.hideCompletedStrings ?? true;
+  // Ref ώστε τα σταθερά callbacks (updateLocal, onRowBlur) να βλέπουν την τρέχουσα τιμή.
+  const graceMsRef = useRef(UNTRANSLATED_GRACE_MS);
+  graceMsRef.current = hideCompleted ? UNTRANSLATED_GRACE_MS : Infinity;
+
+  // Ένα νέο πάτημα του φίλτρου ξεκινά καθαρά: ό,τι ολοκληρώθηκε πριν δεν κρατιέται πια.
+  useEffect(() => {
+    recentlyCompletedRef.current.clear();
+  }, [onlyUntranslated]);
+
+  // Αλλαγή της ρύθμισης ενώ η σελίδα είναι ανοιχτή: οι τρέχουσες χάρες παίρνουν τη νέα λήξη.
+  useEffect(() => {
+    const map = recentlyCompletedRef.current;
+    for (const id of map.keys()) map.set(id, Date.now() + graceMsRef.current);
+    setGraceTick((t) => t + 1);
+  }, [hideCompleted]);
 
   const visible = useMemo(() => {
     if (!data) return [];
@@ -119,10 +139,10 @@ export function StringEditor() {
   // Χρονόμετρο μόνο όσο υπάρχει κάτι σε χρόνο χάριτος — ξαναϋπολογίζει το visible ώστε
   // ένα ληγμένο string να εξαφανιστεί χωρίς να χρειάζεται άλλη αλληλεπίδραση του χρήστη.
   useEffect(() => {
-    if (recentlyCompletedRef.current.size === 0) return;
+    if (recentlyCompletedRef.current.size === 0 || !hideCompleted) return;
     const interval = setInterval(() => setGraceTick((t) => t + 1), 1000);
     return () => clearInterval(interval);
-  }, [graceTick]);
+  }, [graceTick, hideCompleted]);
 
   // Εικονικοποίηση: ένα αρχείο με 10.000 κείμενα δεν πρέπει να παγώνει τη σελίδα.
   const virtualizer = useVirtualizer({
@@ -132,7 +152,6 @@ export function StringEditor() {
     overscan: 8,
   });
 
-  const { user } = useAuth();
   const [showRecent, setShowRecent] = useState(false);
   const recentPageSize = user?.recentTranslationsCount ?? 10;
   // Πόσες «σελίδες» έχει φορτώσει ο χρήστης με το «Φόρτωση περισσότερων».
@@ -185,7 +204,7 @@ export function StringEditor() {
 
   const onRowBlur = useCallback((id: string) => {
     if (recentlyCompletedRef.current.has(id)) {
-      recentlyCompletedRef.current.set(id, Date.now() + UNTRANSLATED_GRACE_MS);
+      recentlyCompletedRef.current.set(id, Date.now() + graceMsRef.current);
       setGraceTick((t) => t + 1);
     }
   }, []);
@@ -199,7 +218,7 @@ export function StringEditor() {
         // Μόλις ένα string γίνει done ενώ η σελίδα είναι ανοιχτή, παίρνει χρόνο χάριτος
         // πριν εξαφανιστεί από τη λίστα «Μη μεταφρασμένα» — βλ. UNTRANSLATED_GRACE_MS.
         if (!isDone(s, current.language, current.completed) && isDone(updated, current.language, current.completed)) {
-          recentlyCompletedRef.current.set(id, Date.now() + UNTRANSLATED_GRACE_MS);
+          recentlyCompletedRef.current.set(id, Date.now() + graceMsRef.current);
           setGraceTick((t) => t + 1);
         } else if (!isDone(updated, current.language, current.completed)) {
           // Ξαναέγινε μη μεταφρασμένο (π.χ. σβήστηκε το κείμενο) — δεν χρειάζεται πια χάρη.

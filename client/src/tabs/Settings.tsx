@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Role } from '@metafrasis/shared';
 import { el } from '../i18n/el.js';
 import { api, ApiRequestError } from '../lib/api.js';
-import { EmptyState } from '../components/common.js';
 import { Icon } from '../components/Icon.js';
+import { PersonalSettings } from '../components/PersonalSettings.js';
 import type { ProjectDetail } from '../pages/ProjectWindow.js';
 
 export function SettingsTab({
@@ -21,10 +21,12 @@ export function SettingsTab({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Οι προσωπικές ρυθμίσεις αφορούν κάθε μέλος· οι ρυθμίσεις του project μόνο τους διαχειριστές.
   if (project.role !== Role.MANAGER) {
     return (
-      <div className="card">
-        <EmptyState title={el.settings.managerOnly} />
+      <div className="stack">
+        <PersonalSettings />
+        <div className="card muted">{el.settings.managerOnly}</div>
       </div>
     );
   }
@@ -58,6 +60,8 @@ export function SettingsTab({
 
   return (
     <div className="stack">
+      <PersonalSettings />
+
       <form className="card" onSubmit={save}>
         <h2>{el.settings.title}</h2>
 
