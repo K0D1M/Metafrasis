@@ -1,9 +1,5 @@
 import { useRef, useState } from 'react';
-import {
-  RECENT_TRANSLATIONS_MAX,
-  RECENT_TRANSLATIONS_MIN,
-  type SessionUser,
-} from '@metafrasis/shared';
+import type { SessionUser } from '@metafrasis/shared';
 import { el } from '../i18n/el.js';
 import { api, ApiRequestError } from '../lib/api.js';
 import { useAuth } from '../lib/auth.js';
@@ -107,63 +103,7 @@ export function ProfileModal({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        <RecentCountSetting />
       </div>
     </Modal>
-  );
-}
-
-function RecentCountSetting() {
-  const { user, setUser } = useAuth();
-  const [value, setValue] = useState(String(user?.recentTranslationsCount ?? 10));
-  const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-
-  if (!user) return null;
-  const parsed = Number(value);
-  const valid =
-    Number.isInteger(parsed) && parsed >= RECENT_TRANSLATIONS_MIN && parsed <= RECENT_TRANSLATIONS_MAX;
-  const changed = parsed !== user.recentTranslationsCount;
-
-  async function save() {
-    setStatus('saving');
-    try {
-      setUser(await api.patch<SessionUser>('/auth/me/preferences', { recentTranslationsCount: parsed }));
-      setStatus('saved');
-      setTimeout(() => setStatus('idle'), 2000);
-    } catch {
-      setStatus('error');
-    }
-  }
-
-  return (
-    <div className="field" style={{ width: '100%', textAlign: 'start' }}>
-      <label htmlFor="recent-count">{el.profile.recentCount}</label>
-      <div className="row">
-        <input
-          id="recent-count"
-          type="number"
-          min={RECENT_TRANSLATIONS_MIN}
-          max={RECENT_TRANSLATIONS_MAX}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          style={{ width: 100 }}
-        />
-        <button
-          className="icon-btn"
-          onClick={() => void save()}
-          disabled={!valid || !changed || status === 'saving'}
-        >
-          <Icon name="save" />
-          {status === 'saving' ? el.app.loading : el.app.save}
-        </button>
-        {status === 'saved' && <span className="badge">{el.profile.saved}</span>}
-      </div>
-      <div className="muted" style={{ fontSize: '0.85em', marginTop: '0.25rem' }}>
-        {el.profile.recentCountHint(RECENT_TRANSLATIONS_MIN, RECENT_TRANSLATIONS_MAX)}
-      </div>
-      {(status === 'error' || (!valid && value !== '')) && (
-        <div className="field-error">{el.profile.recentCountInvalid(RECENT_TRANSLATIONS_MIN, RECENT_TRANSLATIONS_MAX)}</div>
-      )}
-    </div>
   );
 }

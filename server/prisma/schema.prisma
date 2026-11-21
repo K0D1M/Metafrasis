@@ -33,6 +33,9 @@ model User {
   deactivatedAt DateTime?
   /// Πόσα κείμενα δείχνει το πάνελ «Μεταφράστηκε τελευταία» — προσωπική ρύθμιση.
   recentTranslationsCount Int @default(10)
+  /// Ένα κείμενο που μόλις ολοκληρώθηκε φεύγει από το φίλτρο «Μη μεταφρασμένα» μετά από
+  /// λίγα δευτερόλεπτα. Με false μένει ορατό μέχρι να ξαναφιλτράρει ο χρήστης.
+  hideCompletedStrings    Boolean @default(true)
 
   memberships    ProjectMember[]
   translations   Translation[]

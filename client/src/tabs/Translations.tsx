@@ -13,6 +13,8 @@ interface SummaryResponse {
 export function TranslationsTab({ project }: { project: ProjectDetail }) {
   const [data, setData] = useState<SummaryResponse | null>(null);
   const [downloading, setDownloading] = useState(false);
+  /** null όσο ο server ετοιμάζει το zip· μετά, πόσα bytes έχουν έρθει. */
+  const [received, setReceived] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -28,6 +30,7 @@ export function TranslationsTab({ project }: { project: ProjectDetail }) {
    */
   async function download() {
     setError(null);
+    setReceived(null);
     setDownloading(true);
     try {
       const res = await fetch(`/api/projects/${project.id}/translations/download`, {
@@ -38,7 +41,22 @@ export function TranslationsTab({ project }: { project: ProjectDetail }) {
         throw new Error(body?.error ?? el.app.error);
       }
 
-      const blob = await res.blob();
+      // Το zip συμπιέζεται καθώς στέλνεται, οπότε το συνολικό μέγεθος δεν είναι γνωστό·
+      // δείχνουμε πόσα έχουν έρθει, ώστε να φαίνεται ότι η λήψη προχωρά.
+      const chunks: BlobPart[] = [];
+      let total = 0;
+      setReceived(0);
+      const reader = res.body?.getReader();
+      if (reader) {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          total += value.byteLength;
+          setReceived(total);
+        }
+      }
+      const blob = reader ? new Blob(chunks, { type: 'application/zip' }) : await res.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -50,6 +68,7 @@ export function TranslationsTab({ project }: { project: ProjectDetail }) {
       setError(err instanceof Error ? err.message : el.app.error);
     } finally {
       setDownloading(false);
+      setReceived(null);
     }
   }
 
@@ -72,9 +91,19 @@ export function TranslationsTab({ project }: { project: ProjectDetail }) {
         </div>
         <button className="primary icon-btn" onClick={() => void download()} disabled={downloading}>
           <Icon name="download" />
-          {downloading ? el.translationsTab.downloading : el.translationsTab.download}
+          {downloading
+            ? received === null
+              ? el.translationsTab.preparing
+              : el.translationsTab.receiving(formatBytes(received))
+            : el.translationsTab.download}
         </button>
       </div>
+
+      {downloading && (
+        <div className="progress-track indeterminate" role="progressbar" aria-busy="true" style={{ marginBottom: '0.75rem' }}>
+          <div className="progress-fill" />
+        </div>
+      )}
 
       {error && <div className="field-error" style={{ marginBottom: '0.75rem' }}>{error}</div>}
 
@@ -111,4 +140,10 @@ export function TranslationsTab({ project }: { project: ProjectDetail }) {
       </div>
     </div>
   );
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1).replace('.', ',')} MB`;
 }

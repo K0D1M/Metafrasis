@@ -73,14 +73,25 @@ export interface SessionUser {
   isAdmin: boolean;
   /** Πόσα κείμενα δείχνει το πάνελ «Μεταφράστηκε τελευταία». */
   recentTranslationsCount: number;
+  /** Τα κείμενα που ολοκληρώνονται φεύγουν από το φίλτρο «Μη μεταφρασμένα» μετά από λίγο. */
+  hideCompletedStrings: boolean;
 }
 
 export const RECENT_TRANSLATIONS_MIN = 1;
 export const RECENT_TRANSLATIONS_MAX = 100;
 
-export const preferencesSchema = z.object({
-  recentTranslationsCount: z.number().int().min(RECENT_TRANSLATIONS_MIN).max(RECENT_TRANSLATIONS_MAX),
-});
+export const preferencesSchema = z
+  .object({
+    recentTranslationsCount: z
+      .number()
+      .int()
+      .min(RECENT_TRANSLATIONS_MIN)
+      .max(RECENT_TRANSLATIONS_MAX)
+      .optional(),
+    hideCompletedStrings: z.boolean().optional(),
+  })
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, 'Καμία ρύθμιση για αλλαγή');
 
 /* ── Projects ──────────────────────────────────────────────────────────────── */
 

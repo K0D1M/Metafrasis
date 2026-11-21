@@ -23,9 +23,6 @@ export const el = {
     changeAvatar: 'Αλλαγή avatar',
     removeAvatar: 'Αφαίρεση avatar',
     usernameLocked: 'Το όνομα χρήστη το αλλάζει μόνο ο διαχειριστής',
-    recentCount: 'Κείμενα στο «Μεταφράστηκε τελευταία»',
-    recentCountHint: (min: number, max: number) => `Από ${min} έως ${max}.`,
-    recentCountInvalid: (min: number, max: number) => `Δώσε έναν ακέραιο από ${min} έως ${max}.`,
     invalidType: 'Επιτρέπονται μόνο εικόνες PNG, JPEG, WebP ή GIF',
     saved: 'Το avatar ενημερώθηκε',
   },
@@ -197,6 +194,8 @@ export const el = {
     title: 'Μεταφράσεις',
     download: 'Λήψη ως .zip',
     downloading: 'Προετοιμασία…',
+    preparing: 'Ετοιμάζεται το .zip…',
+    receiving: (size: string) => `Λήψη… ${size}`,
     empty: 'Δεν υπάρχουν αρχεία για εξαγωγή',
     emptyHint: 'Ανέβασε πρώτα αρχεία από την καρτέλα Πηγές',
     hint: 'Όπου λείπει μετάφραση διατηρείται το πρωτότυπο, ώστε το παιχνίδι να φορτώνει πάντα.',
@@ -265,7 +264,16 @@ export const el = {
   },
 
   settings: {
-    title: 'Ρυθμίσεις',
+    title: 'Ρυθμίσεις project',
+    personalTitle: 'Οι ρυθμίσεις μου',
+    personalHint: 'Ισχύουν μόνο για εσένα, σε όλα τα projects.',
+    recentCount: 'Κείμενα στο «Μεταφράστηκε τελευταία»',
+    recentCountHint: (min: number, max: number) => `Από ${min} έως ${max}.`,
+    recentCountInvalid: (min: number, max: number) => `Δώσε έναν ακέραιο από ${min} έως ${max}.`,
+    hideCompleted: 'Εξαφάνιση ολοκληρωμένων κειμένων',
+    hideCompletedHint:
+      'Στο φίλτρο «Μη μεταφρασμένα», ένα κείμενο που μόλις μετέφρασες φεύγει από τη λίστα μετά από 15 δευτερόλεπτα. Όταν είναι ανενεργό, μένει ορατό μέχρι να ξαναπατήσεις το φίλτρο ή να ανανεώσεις τη σελίδα.',
+    personalSaved: 'Αποθηκεύτηκε',
     projectName: 'Όνομα project',
     activityVisibility: 'Ορατότητα Δραστηριότητας',
     activityVisibilityHint:

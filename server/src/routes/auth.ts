@@ -36,6 +36,7 @@ function toSessionUser(user: {
   avatarUrl: string | null;
   isAdmin: boolean;
   recentTranslationsCount: number;
+  hideCompletedStrings: boolean;
 }): SessionUser {
   return {
     id: user.id,
@@ -44,6 +45,7 @@ function toSessionUser(user: {
     avatarUrl: user.avatarUrl,
     isAdmin: user.isAdmin,
     recentTranslationsCount: user.recentTranslationsCount,
+    hideCompletedStrings: user.hideCompletedStrings,
   };
 }
 
@@ -241,7 +243,7 @@ authRouter.patch('/me/avatar', requireAuth, async (req, res) => {
   res.json(toSessionUser(user));
 });
 
-/** Προσωπικές ρυθμίσεις του χρήστη (π.χ. μέγεθος λίστας «Μεταφράστηκε τελευταία»). */
+/** Προσωπικές ρυθμίσεις του χρήστη· αλλάζουν μόνο όσες στέλνονται. */
 authRouter.patch('/me/preferences', requireAuth, async (req, res) => {
   const parsed = preferencesSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -250,7 +252,7 @@ authRouter.patch('/me/preferences', requireAuth, async (req, res) => {
   }
   const user = await prisma.user.update({
     where: { id: req.userId! },
-    data: { recentTranslationsCount: parsed.data.recentTranslationsCount },
+    data: parsed.data,
   });
   res.json(toSessionUser(user));
 });

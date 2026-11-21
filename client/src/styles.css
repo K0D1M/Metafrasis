@@ -193,6 +193,7 @@ button.danger { color: var(--danger); }
 input[type='text'],
 input[type='email'],
 input[type='password'],
+input[type='number'],
 textarea,
 select {
   font: inherit;
@@ -287,6 +288,18 @@ tbody tr:last-child td { border-bottom: none; }
   background: var(--success);
   border-radius: 999px;
   transition: width 0.3s ease;
+}
+/* Απροσδιόριστη πρόοδος (π.χ. λήψη .zip άγνωστου μεγέθους). */
+.progress-track.indeterminate .progress-fill {
+  width: 35%;
+  animation: progress-slide 1.2s ease-in-out infinite;
+}
+@keyframes progress-slide {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(290%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .progress-track.indeterminate .progress-fill { animation: none; width: 100%; opacity: 0.5; }
 }
 
 /* ── Avatar ───────────────────────────────────────────────────────────────── */
