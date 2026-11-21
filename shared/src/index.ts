@@ -372,6 +372,10 @@ export const ActivityAction = {
   QA_CREATE: 'qa.create',
   QA_RESOLVE: 'qa.resolve',
   SETTINGS_UPDATE: 'settings.update',
+  GITHUB_CONNECT: 'github.connect',
+  GITHUB_DISCONNECT: 'github.disconnect',
+  GITHUB_IMPORT: 'github.import',
+  GITHUB_PUSH: 'github.push',
 } as const;
 
 export type ActivityAction = (typeof ActivityAction)[keyof typeof ActivityAction];
@@ -421,6 +425,88 @@ export const updateSettingsSchema = z.object({
   activityVisibleToAll: z.boolean().optional(),
 });
 export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;
+
+/* ── GitHub integration ────────────────────────────────────────────────────── */
+
+/** Φάκελος μέσα στο αποθετήριο: χωρίς αρχική/τελική κάθετο, χωρίς "..". Κενό = ρίζα. */
+const repoDir = z
+  .string()
+  .trim()
+  .max(300)
+  .transform((value) => value.replace(/\\/g, '/').replace(/^\/+|\/+$/g, ''))
+  .refine((value) => !value.split('/').includes('..'), 'Μη έγκυρος φάκελος');
+
+export const githubLinkSchema = z.object({
+  /** "owner/repo" ή πλήρες URL του αποθετηρίου. */
+  repository: z.string().trim().min(3).max(300),
+  baseBranch: z.string().trim().min(1).max(200),
+  sourcePath: repoDir,
+  targetPath: repoDir.refine((value) => value.includes('{lang}'), {
+    message: 'Ο φάκελος προορισμού πρέπει να περιέχει το {lang}',
+  }),
+  /** Υποχρεωτικό στην πρώτη σύνδεση· κενό σε επεξεργασία κρατά το υπάρχον token. */
+  token: z.string().trim().max(500).optional(),
+});
+export type GithubLinkInput = z.infer<typeof githubLinkSchema>;
+
+export const githubPushSchema = z.object({
+  language: z.string().min(2).max(20),
+});
+
+/**
+ * Πρόταση φακέλου προορισμού: αν ο φάκελος πηγής περιέχει τμήμα με τη γλώσσα πηγής
+ * (π.χ. "locales/en"), το ίδιο τμήμα γίνεται "{lang}". Αλλιώς, αδελφός φάκελος.
+ */
+export function suggestTargetPath(sourcePath: string, sourceLanguage: string): string {
+  const segments = sourcePath.split('/').filter(Boolean);
+  const index = segments.lastIndexOf(sourceLanguage);
+  if (index >= 0) {
+    segments[index] = '{lang}';
+    return segments.join('/');
+  }
+  return [...segments.slice(0, -1), '{lang}'].join('/');
+}
+
+export interface GithubLinkView {
+  owner: string;
+  repo: string;
+  baseBranch: string;
+  sourcePath: string;
+  targetPath: string;
+  tokenHint: string;
+  connectedBy: { id: string; username: string };
+  createdAt: string;
+  lastImportAt: string | null;
+  lastImportSha: string | null;
+  lastPushAt: string | null;
+  lastPullUrl: string | null;
+}
+
+/** Τι θα κάνει η εισαγωγή σε κάθε αρχείο JSON του φακέλου πηγής. */
+export type GithubFileStatus = 'new' | 'changed' | 'unchanged' | 'invalid';
+
+export interface GithubImportPreview {
+  commitSha: string;
+  files: Array<{ path: string; status: GithubFileStatus; error?: string }>;
+}
+
+export interface GithubImportResult {
+  commitSha: string;
+  created: number;
+  updated: number;
+  unchanged: number;
+  failed: Array<{ path: string; error: string }>;
+}
+
+export interface GithubPushResult {
+  /** false όταν οι μεταφράσεις στο branch ήταν ήδη ίδιες — δεν έγινε νέο commit. */
+  committed: boolean;
+  fileCount: number;
+  branch: string;
+  /** null όταν δεν υπήρχε τίποτα να σταλεί και κανένα ανοιχτό PR. */
+  pullUrl: string | null;
+  pullNumber: number | null;
+}
 
 /* ── Σφάλματα API ──────────────────────────────────────────────────────────── */
 

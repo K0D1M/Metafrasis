@@ -48,6 +48,7 @@ model User {
   activities     Activity[]
   passwordResets PasswordReset[]
   notifications  Notification[]
+  githubLinks    GithubLink[]
 
   @@index([email])
 }
@@ -72,6 +73,7 @@ model Project {
   qaReports     QaReport[]
   activities    Activity[]
   notifications Notification[]
+  githubLink    GithubLink?
 }
 
 model ProjectMember {
@@ -114,6 +116,10 @@ model SourceFile {
   projectId String
   folderId  String?
   name      String
+  /// Διαδρομή μέσα στον φάκελο πηγής του συνδεδεμένου αποθετηρίου GitHub, π.χ.
+  /// "chapter1/intro.json". Ορίζεται στην εισαγωγή από GitHub· χωρίς αυτήν η αποστολή
+  /// χρησιμοποιεί φάκελο/όνομα, όπως το .zip της καρτέλας Μεταφράσεις.
+  githubPath String?
   createdAt DateTime @default(now())
 
   project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -368,4 +374,36 @@ model Invite {
   creator User    @relation("InviteCreator", fields: [createdBy], references: [id])
 
   @@index([projectId])
+}
+
+/// Σύνδεση project με αποθετήριο GitHub (καρτέλα Integrations) — το πολύ μία ανά project.
+/// Τα αρχεία πηγής εισάγονται από το sourcePath· οι μεταφράσεις φεύγουν ως Pull Request
+/// στο targetPath, όπου το "{lang}" γίνεται ο κωδικός της γλώσσας-στόχου.
+model GithubLink {
+  id            String   @id @default(cuid())
+  projectId     String   @unique
+  owner         String
+  repo          String
+  /// Το branch από όπου εισάγονται τα αρχεία και προς το οποίο ανοίγουν τα PR.
+  baseBranch    String
+  /// Φάκελος των αρχείων πηγής μέσα στο αποθετήριο· "" σημαίνει τη ρίζα.
+  sourcePath    String
+  /// Φάκελος προορισμού των μεταφράσεων, με "{lang}" για τη γλώσσα, π.χ. "locales/{lang}".
+  targetPath    String
+  /// Personal access token, κρυπτογραφημένο με AES-256-GCM — ποτέ δεν επιστρέφεται στον client.
+  tokenCipher   String
+  /// Τελευταίοι 4 χαρακτήρες του token, για να αναγνωρίζει ο διαχειριστής ποιο είναι.
+  tokenHint     String
+  connectedById String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  lastImportAt  DateTime?
+  /// Το commit του baseBranch στην τελευταία εισαγωγή.
+  lastImportSha String?
+  lastPushAt    DateTime?
+  /// Το Pull Request της τελευταίας αποστολής.
+  lastPullUrl   String?
+
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  connectedBy User    @relation(fields: [connectedById], references: [id])
 }

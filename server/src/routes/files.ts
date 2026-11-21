@@ -203,8 +203,8 @@ function chunks<T>(items: T[]): T[][] {
   return result;
 }
 
-/** Κοινή διαδρομή για πρώτο ανέβασμα και για Ενημέρωση υπάρχοντος αρχείου. */
-async function ingestUpload(params: {
+/** Κοινή διαδρομή για πρώτο ανέβασμα, Ενημέρωση υπάρχοντος αρχείου και εισαγωγή από GitHub. */
+export async function ingestUpload(params: {
   projectId: string;
   fileId: string | null;
   folderId: string | null;
