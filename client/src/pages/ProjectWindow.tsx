@@ -129,7 +129,7 @@ export function ProjectWindow() {
       {tab === 'screenshots' && <ScreenshotsTab project={project} />}
       {tab === 'tasks' && <TasksTab project={project} />}
       {tab === 'members' && <MembersTab project={project} />}
-      {tab === 'integrations' && <IntegrationsTab />}
+      {tab === 'integrations' && <IntegrationsTab project={project} onChanged={reload} />}
       {tab === 'qa' && <QaTab project={project} />}
       {tab === 'activity' && <ActivityTab project={project} />}
       {tab === 'settings' && <SettingsTab project={project} onChanged={reload} />}
