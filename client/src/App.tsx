@@ -12,6 +12,7 @@ import { ProjectWindow } from './pages/ProjectWindow.js';
 import { StringEditor } from './pages/StringEditor.js';
 import { AdminDashboard } from './pages/AdminDashboard.js';
 import { UpdatePrompt } from './components/UpdatePrompt.js';
+import { PushNavigationListener } from './lib/push.js';
 
 /** Κρατά τον χρήστη στη σελίδα σύνδεσης όσο δεν υπάρχει συνεδρία. */
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -51,6 +52,7 @@ export function App() {
     <ThemeProvider>
       <UpdatePrompt />
       <BrowserRouter>
+        <PushNavigationListener />
         <AuthProvider>
           <Routes>
             <Route

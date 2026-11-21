@@ -3,9 +3,20 @@ import { useNavigate } from 'react-router-dom';
 import type { NotificationView } from '@metafrasis/shared';
 import { el } from '../i18n/el.js';
 import { api } from '../lib/api.js';
+import { enableDesktopNotifications, useDesktopNotificationState } from '../lib/push.js';
 import { Icon } from './Icon.js';
 
 const POLL_MS = 30_000;
+/** Ο χρήστης είπε «Όχι τώρα» στην πρόταση ενεργοποίησης — δεν την ξαναδείχνουμε σε αυτή τη συσκευή. */
+const PUSH_PROMPT_DISMISSED_KEY = 'metafrasis.pushPromptDismissed';
+
+function readDismissed(): boolean {
+  try {
+    return localStorage.getItem(PUSH_PROMPT_DISMISSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 /** Ίδιο μοτίβο μορφοποίησης ώρας με το ActivityTab — η στιγμή έχει σημασία εδώ. */
 function formatMoment(iso: string): string {
@@ -28,6 +39,8 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationView[] | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [pushState, setPushState] = useDesktopNotificationState();
+  const [promptDismissed, setPromptDismissed] = useState(readDismissed);
 
   function pollCount() {
     api
@@ -39,8 +52,33 @@ export function NotificationBell() {
   useEffect(() => {
     pollCount();
     const interval = setInterval(pollCount, POLL_MS);
-    return () => clearInterval(interval);
+    // Με ενεργές ειδοποιήσεις επιφάνειας εργασίας, ο service worker μάς ειδοποιεί αμέσως.
+    function onWorkerMessage(event: MessageEvent) {
+      if ((event.data as { type?: string } | null)?.type === 'metafrasis:notification') pollCount();
+    }
+    navigator.serviceWorker?.addEventListener('message', onWorkerMessage);
+    return () => {
+      clearInterval(interval);
+      navigator.serviceWorker?.removeEventListener('message', onWorkerMessage);
+    };
   }, []);
+
+  function dismissPrompt() {
+    setPromptDismissed(true);
+    try {
+      localStorage.setItem(PUSH_PROMPT_DISMISSED_KEY, '1');
+    } catch {
+      // Χωρίς αποθήκευση απλώς θα ξαναεμφανιστεί στην επόμενη φόρτωση.
+    }
+  }
+
+  async function enablePush() {
+    try {
+      setPushState(await enableDesktopNotifications());
+    } catch {
+      // Η αναλυτική εικόνα (και το μήνυμα σφάλματος) ζει στον διακόπτη του προφίλ.
+    }
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -136,6 +174,23 @@ export function NotificationBell() {
             )}
           </div>
 
+          {pushState === 'off' && !promptDismissed && (
+            <div className="push-prompt">
+              <div className="row" style={{ alignItems: 'flex-start', gap: '0.5rem' }}>
+                <Icon name="bell" size={16} />
+                <span>{el.desktopNotifications.bellPrompt}</span>
+              </div>
+              <div className="row" style={{ justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                <button className="ghost" style={{ fontSize: '0.9em' }} onClick={dismissPrompt}>
+                  {el.desktopNotifications.bellPromptDismiss}
+                </button>
+                <button className="primary" style={{ fontSize: '0.9em' }} onClick={() => void enablePush()}>
+                  {el.desktopNotifications.bellPromptAction}
+                </button>
+              </div>
+            </div>
+          )}
+
           {items === null ? (
             <div className="muted">{el.app.loading}</div>
           ) : items.length === 0 ? (
@@ -165,6 +220,7 @@ export function NotificationBell() {
               ))}
             </div>
           )}
+
         </div>
       )}
     </div>
