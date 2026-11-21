@@ -490,7 +490,9 @@ tbody tr:last-child td { border-bottom: none; }
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
-.switch[aria-checked='true'] { background: var(--accent); border-color: var(--accent); }
+.switch:hover:not(:disabled) { background: var(--border); }
+.switch[aria-checked='true'],
+.switch[aria-checked='true']:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); }
 .switch:disabled { opacity: 0.5; cursor: not-allowed; }
 .switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .switch-thumb {
