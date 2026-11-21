@@ -8,6 +8,7 @@ import { el } from '../i18n/el.js';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.js';
 import { Icon } from './Icon.js';
+import { DesktopNotificationsSetting } from './DesktopNotificationsSetting.js';
 
 type Preferences = Partial<Pick<SessionUser, 'recentTranslationsCount' | 'hideCompletedStrings'>>;
 
@@ -27,6 +28,7 @@ export function PersonalSettings() {
       </p>
       <HideCompletedSetting />
       <RecentCountSetting />
+      <DesktopNotificationsSetting />
     </div>
   );
 }

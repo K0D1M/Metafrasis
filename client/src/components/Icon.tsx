@@ -6,6 +6,9 @@
 import type { ReactElement } from 'react';
 
 const ICON_PATHS: Record<string, ReactElement> = {
+  bell: (
+    <path d="M12 2a6 6 0 0 0-6 6v3.6l-1.7 2.7A1 1 0 0 0 5.2 16h13.6a1 1 0 0 0 .9-1.7L18 11.6V8a6 6 0 0 0-6-6Zm-2.8 16a3 3 0 0 0 5.6 0H9.2Z" />
+  ),
   cancel: (
     <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm3.5 12.1-1.4 1.4L12 13.4l-2.1 2.1-1.4-1.4L10.6 12 8.5 9.9l1.4-1.4L12 10.6l2.1-2.1 1.4 1.4L13.4 12Z" />
   ),

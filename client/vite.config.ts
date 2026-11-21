@@ -32,6 +32,8 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [{ urlPattern: /^\/api\//, handler: 'NetworkOnly' }],
         cleanupOutdatedCaches: true,
+        // Χειρισμός Web Push (ειδοποιήσεις επιφάνειας εργασίας) — βλ. public/push-sw.js.
+        importScripts: ['push-sw.js'],
       },
     }),
   ],

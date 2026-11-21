@@ -52,6 +52,7 @@ model User {
   passwordResets PasswordReset[]
   notifications  Notification[]
   githubLinks    GithubLink[]
+  pushSubscriptions PushSubscription[]
 
   @@index([email])
 }
@@ -343,6 +344,31 @@ model Notification {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([userId, readAt, createdAt])
+}
+
+/// Συνδρομή Web Push μιας συσκευής/browser — μία ανά endpoint. Ο ίδιος χρήστης μπορεί
+/// να έχει πολλές (laptop, κινητό). Αν άλλος χρήστης συνδεθεί στον ίδιο browser και
+/// ενεργοποιήσει τις ειδοποιήσεις, το endpoint περνά σε αυτόν (upsert ανά endpoint).
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  /// Κλειδιά κρυπτογράφησης του browser (base64url), απαραίτητα για την αποστολή.
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// Ρυθμίσεις του ίδιου του app που δημιουργούνται αυτόματα (π.χ. κλειδιά VAPID όταν
+/// δεν δίνονται από μεταβλητές περιβάλλοντος). Απλό key/value.
+model AppSetting {
+  key       String   @id
+  value     String
+  createdAt DateTime @default(now())
 }
 
 /// Αίτημα επαναφοράς κωδικού. Παράλληλο μοντέλο με το Invite: token, λήξη, χρήση μία φορά.

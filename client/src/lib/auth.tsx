@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { SessionUser, LoginInput, RegisterInput } from '@metafrasis/shared';
 import { api } from './api.js';
+import { disableDesktopNotifications } from './push.js';
 
 interface AuthState {
   user: SessionUser | null;
@@ -32,6 +33,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login: async (input) => setUser(await api.post<SessionUser>('/auth/login', input)),
     register: async (input) => setUser(await api.post<SessionUser>('/auth/register', input)),
     logout: async () => {
+      // Μετά την αποσύνδεση η συσκευή δεν πρέπει να λαμβάνει ειδοποιήσεις αυτού του λογαριασμού.
+      await disableDesktopNotifications().catch(() => {});
       await api.post('/auth/logout');
       setUser(null);
     },
