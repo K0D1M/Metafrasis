@@ -220,6 +220,11 @@ Postgres στο Supabase μέσω Prisma. Το σχήμα είναι στο `ser
 migrations στο `server/prisma/migrations/`. Το app συνδέεται μέσω του pooler
 (`DATABASE_URL`) και τα migrations απευθείας (`DIRECT_URL`).
 
+Και οι δύο συνδέσεις πρέπει να γίνονται με τον ρόλο που κατέχει τους πίνακες (`postgres`). Όλοι
+οι πίνακες του `public` έχουν Row-Level Security χωρίς πολιτικές και οι ρόλοι `anon`/`authenticated`
+δεν έχουν δικαιώματα, οπότε το Data API του Supabase δεν βλέπει τίποτα· ο κάτοχος παρακάμπτει το RLS.
+Κάθε νέος πίνακας παίρνει `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` στο migration του.
+
 | Εντολή                 | Τι κάνει                                              |
 | ---------------------- | ----------------------------------------------------- |
 | `npm run db:migrate`   | Νέο migration σε dev (`prisma migrate dev`)           |
